@@ -97,6 +97,18 @@ Each of these was checked against real data, not assumed:
 
 ## Not yet verified
 
+- **Port-based run adoption (added 2026-08-14, unverified end to end).** The
+  earlier pid-based scheme provably could not work: the recorded pid is npm's,
+  and npm dies when the app closes while the server it spawned — a grandchild —
+  keeps the port. Confirmed by observation: recorded pid 21528 was gone while the
+  server ran as pid 22736 with all its ancestors dead. Adoption now keys on the
+  ports a run was last seen holding. The logic typechecks and the reasoning is
+  sound, but the two-phase test harness hung before producing a result, so
+  **treat this as unproven** until a start → quit → relaunch cycle is watched by
+  hand.
+- **The simplified quit dialog, the run chip's stop/restart buttons, and the
+  folder button on external server rows** — all typecheck, none clicked.
+
 These paths exist and typecheck but have never been executed. Do not describe them
 as working.
 

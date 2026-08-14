@@ -199,6 +199,16 @@ function Shell(): React.JSX.Element {
     }
   }
 
+  const stopRun = async (runId: string): Promise<void> => {
+    try {
+      await window.nsm.servers.stop(runId)
+      toast.success('Server stopped.')
+      void scan()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    }
+  }
+
   const restartRun = async (runId: string): Promise<void> => {
     try {
       const run = await window.nsm.servers.restart(runId)
@@ -387,6 +397,7 @@ Right-click for options`}
                 onStopPid={stopServer}
                 onRestartRun={restartRun}
                 onOpenProject={(id) => setView({ kind: 'project', id })}
+                onOpenFolder={(id) => void window.nsm.projects.reveal(id)}
               />
             </div>
           </>
@@ -395,6 +406,8 @@ Right-click for options`}
             detail={detail}
             runs={runs}
             onStart={startServer}
+            onStop={stopRun}
+            onRestart={restartRun}
             onRemove={removeProject}
             onRefreshDetail={() => void loadDetail(view.id)}
           />

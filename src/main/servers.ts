@@ -6,7 +6,7 @@ import path from 'node:path'
 import { app } from 'electron'
 import type { ManagedRun, ServerLogLine } from '@shared/types'
 import { closeLogFd, LogTailer, openLogFd } from './logtail'
-import { getProject } from './store'
+import { getProject, normalizePath } from './store'
 import { resolveToolchain } from './toolchain'
 
 interface RunRecord extends ManagedRun {
@@ -29,6 +29,13 @@ export const serverEvents = new EventEmitter()
 
 /** Persisted runs awaiting validation against live processes; null once resolved. */
 let pendingAdoption: PersistedRun[] | null = null
+/**
+ * Adoption is retried across several scans. A dev server's npm process can take
+ * a moment to appear in the process table after the app starts, and giving up on
+ * the first pass used to discard the saved index permanently.
+ */
+let adoptionAttempts = 0
+const MAX_ADOPTION_ATTEMPTS = 5
 
 interface PersistedRun {
   runId: string
@@ -38,6 +45,13 @@ interface PersistedRun {
   pid: number
   startedAt: number
   logFile: string
+  /**
+   * Ports this run was last seen holding. This is what makes reattaching work:
+   * npm exits with the app, but the server it launched -- a grandchild -- keeps
+   * the port. The recorded pid is usually dead by the next launch, so the port is
+   * the only durable handle on the process.
+   */
+  ports: number[]
 }
 
 // --- paths -------------------------------------------------------------------
@@ -64,7 +78,8 @@ function persistRuns(): void {
       script: r.script,
       pid: r.pid as number,
       startedAt: r.startedAt,
-      logFile: r.logFile
+      logFile: r.logFile,
+      ports: r.ports
     }))
 
   try {
@@ -82,7 +97,8 @@ function loadPersistedRuns(): PersistedRun[] {
     const file = runsFile()
     if (!existsSync(file)) return []
     const parsed = JSON.parse(readFileSync(file, 'utf8')) as PersistedRun[]
-    return Array.isArray(parsed) ? parsed : []
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((r) => ({ ...r, ports: Array.isArray(r.ports) ? r.ports : [] }))
   } catch {
     return []
   }
@@ -125,16 +141,31 @@ export interface ProcSnapshot {
  *
  * Called from the port scanner, which already pays for the process query.
  */
-export function reconcileRuns(processIndex: Map<number, ProcSnapshot>): void {
+export function reconcileRuns(
+  processIndex: Map<number, ProcSnapshot>,
+  pidByPort: Map<number, number> = new Map()
+): void {
   if (pendingAdoption !== null) {
+    const unresolved: PersistedRun[] = []
     for (const saved of pendingAdoption) {
       if (runs.has(saved.runId)) continue
-      const proc = processIndex.get(saved.pid)
-      if (!proc || !looksLikeOurRun(proc, saved.script)) continue
-      adopt(saved)
+      const claimedPid = findLiveProcess(saved, processIndex, pidByPort)
+      if (claimedPid !== null) {
+        adopt(saved, claimedPid)
+        continue
+      }
+      // Either the process has not surfaced yet, or it is genuinely gone. Retry
+      // for a few scans rather than discarding the record on the first miss.
+      unresolved.push(saved)
     }
-    pendingAdoption = null
-    persistRuns()
+
+    adoptionAttempts++
+    if (unresolved.length === 0 || adoptionAttempts >= MAX_ADOPTION_ATTEMPTS) {
+      pendingAdoption = null
+      persistRuns()
+    } else {
+      pendingAdoption = unresolved
+    }
   }
 
   let changed = false
@@ -149,32 +180,86 @@ export function reconcileRuns(processIndex: Map<number, ProcSnapshot>): void {
 }
 
 /**
- * Guards against PID reuse: the recorded pid must still be a node process running
- * npm with the same script before we claim it as ours.
+ * Guards against PID reuse before reclaiming a process as ours.
+ *
+ * The original check required the command line to contain both `npm-cli.js` and
+ * `run <script>`. That rejected legitimate runs whenever the command line was
+ * unreadable, which happens routinely: `Win32_Process` omits it for processes the
+ * current user cannot fully open, and the `tasklist` fallback never provides it
+ * at all. Those runs then reappeared as "external" after a restart.
+ *
+ * A readable command line is still matched strictly. When it is missing, the
+ * process name alone is accepted -- pid reuse landing on the same executable
+ * name within the gap between two app launches is unlikely enough to be worth
+ * the far more common correct adoption.
  */
-function looksLikeOurRun(proc: ProcSnapshot, script: string): boolean {
+function looksLikeOurRun(proc: ProcSnapshot, saved: PersistedRun): boolean {
   if (!/^(node|bun|deno)\.exe$/i.test(proc.name)) return false
+
   const cmd = proc.commandLine
-  if (!cmd) return false
-  return cmd.includes('npm-cli.js') && new RegExp(`\\brun\\s+${escapeRegExp(script)}\\b`).test(cmd)
+  if (!cmd) return true
+
+  if (new RegExp(`\\brun\\s+${escapeRegExp(saved.script)}\\b`).test(cmd)) return true
+
+  // Some npm versions rewrite argv, but the project path stays a strong signal.
+  const project = getProject(saved.projectId)
+  return Boolean(
+    project && cmd.replace(/\\/g, '/').toLowerCase().includes(normalizePath(project.path))
+  )
 }
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function adopt(saved: PersistedRun): void {
+/**
+ * Locates the process still serving a saved run, if any.
+ *
+ * The recorded pid is npm's, and npm does not survive the app closing -- the
+ * server it spawned does. So the pid is only a first guess; the ports the run was
+ * last seen on are the reliable route back to it.
+ */
+function findLiveProcess(
+  saved: PersistedRun,
+  processIndex: Map<number, ProcSnapshot>,
+  pidByPort: Map<number, number>
+): number | null {
+  const byPid = processIndex.get(saved.pid)
+  if (byPid && looksLikeOurRun(byPid, saved)) return saved.pid
+
+  for (const port of saved.ports) {
+    const pid = pidByPort.get(port)
+    if (pid === undefined) continue
+    const proc = processIndex.get(pid)
+    // Any runtime still holding a port this run owned is that run continuing.
+    if (proc && /^(node|bun|deno)\.exe$/i.test(proc.name)) return pid
+  }
+  return null
+}
+
+/** Records the ports a run is observed on, so it can be found again next launch. */
+export function setRunPorts(runId: string, ports: number[]): void {
+  const run = runs.get(runId)
+  if (!run) return
+  const same =
+    run.ports.length === ports.length && run.ports.every((p, i) => p === ports[i])
+  if (same) return
+  run.ports = ports
+  persistRuns()
+}
+
+function adopt(saved: PersistedRun, livePid: number): void {
   const run: RunRecord = {
     runId: saved.runId,
     projectId: saved.projectId,
     projectName: saved.projectName,
     script: saved.script,
     status: 'running',
-    pid: saved.pid,
+    pid: livePid,
     exitCode: null,
     startedAt: saved.startedAt,
     endedAt: null,
-    ports: [],
+    ports: saved.ports,
     adopted: true,
     logFile: saved.logFile,
     childPid: null,
@@ -182,7 +267,7 @@ function adopt(saved: PersistedRun): void {
     log: []
   }
   runs.set(run.runId, run)
-  append(run, 'system', `Reattached to server still running from a previous session (PID ${saved.pid}).`)
+  append(run, 'system', `Reattached to server still running from a previous session (PID ${livePid}).`)
   startTailing(run, true)
   serverEvents.emit('run-changed', toPublic(run))
 }

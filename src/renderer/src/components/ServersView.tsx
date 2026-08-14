@@ -1,4 +1,4 @@
-import { ExternalLink, RefreshCw, RotateCw, Server, Square } from 'lucide-react'
+import { ExternalLink, FolderOpen, RefreshCw, RotateCw, Server, Square } from 'lucide-react'
 import type { DetectedServer, ManagedRun } from '@shared/types'
 
 interface Props {
@@ -9,6 +9,7 @@ interface Props {
   onStopPid: (server: DetectedServer) => void
   onRestartRun: (runId: string) => void
   onOpenProject: (projectId: string) => void
+  onOpenFolder: (projectId: string) => void
 }
 
 export default function ServersView({
@@ -18,7 +19,8 @@ export default function ServersView({
   onRefresh,
   onStopPid,
   onRestartRun,
-  onOpenProject
+  onOpenProject,
+  onOpenFolder
 }: Props): React.JSX.Element {
   const managed = servers.filter((s) => s.managed)
   const external = servers.filter((s) => !s.managed)
@@ -67,6 +69,7 @@ export default function ServersView({
               onStopPid={onStopPid}
               onRestartRun={onRestartRun}
               onOpenProject={onOpenProject}
+              onOpenFolder={onOpenFolder}
             />
           )}
           {external.length > 0 && (
@@ -78,6 +81,7 @@ export default function ServersView({
               onStopPid={onStopPid}
               onRestartRun={onRestartRun}
               onOpenProject={onOpenProject}
+              onOpenFolder={onOpenFolder}
             />
           )}
         </>
@@ -93,7 +97,8 @@ function ServerGroup({
   runs,
   onStopPid,
   onRestartRun,
-  onOpenProject
+  onOpenProject,
+  onOpenFolder
 }: {
   title: string
   subtitle: string
@@ -102,6 +107,7 @@ function ServerGroup({
   onStopPid: (server: DetectedServer) => void
   onRestartRun: (runId: string) => void
   onOpenProject: (projectId: string) => void
+  onOpenFolder: (projectId: string) => void
 }): React.JSX.Element {
   return (
     <div className="card">
@@ -152,6 +158,15 @@ function ServerGroup({
             </div>
 
             <div className="server-actions">
+              {server.projectId && (
+                <button
+                  className="btn btn-sm btn-ghost"
+                  title="Open this project's folder"
+                  onClick={() => server.projectId && onOpenFolder(server.projectId)}
+                >
+                  <FolderOpen size={14} />
+                </button>
+              )}
               {server.ports.length > 0 && (
                 <button
                   className="btn btn-sm btn-ghost"

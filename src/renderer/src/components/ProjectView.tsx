@@ -6,6 +6,8 @@ import {
   FolderOpen,
   Play,
   RefreshCw,
+  RotateCw,
+  Square,
   TerminalSquare,
   Trash2
 } from 'lucide-react'
@@ -25,6 +27,8 @@ interface Props {
   detail: ProjectDetail
   runs: ManagedRun[]
   onStart: (projectId: string, script: string) => Promise<void>
+  onStop: (runId: string) => void
+  onRestart: (runId: string) => void
   onRemove: (projectId: string) => void
   onRefreshDetail: () => void
 }
@@ -33,6 +37,8 @@ export default function ProjectView({
   detail,
   runs,
   onStart,
+  onStop,
+  onRestart,
   onRemove,
   onRefreshDetail
 }: Props): React.JSX.Element {
@@ -47,16 +53,14 @@ export default function ProjectView({
   const [plan, setPlan] = useState<{ mode: UpdateMode; entries: UpdatePlanEntry[] } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
 
-  const runningScripts = useMemo(
+  const liveRuns = useMemo(
     () =>
-      runs
-        .filter(
-          (r) =>
-            r.projectId === project.id && (r.status === 'running' || r.status === 'starting')
-        )
-        .map((r) => r.script),
+      runs.filter(
+        (r) => r.projectId === project.id && (r.status === 'running' || r.status === 'starting')
+      ),
     [runs, project.id]
   )
+  const runningScripts = useMemo(() => liveRuns.map((r) => r.script), [liveRuns])
 
   const refreshPackages = useCallback(async () => {
     setScanning(true)
@@ -152,12 +156,43 @@ export default function ProjectView({
 
         <div className="topbar-spacer" />
 
+        {liveRuns.map((run) => (
+          <div key={run.runId} className="run-chip">
+            <span className="status-dot running" />
+            <span className="run-chip-script">{run.script}</span>
+            {run.ports.length > 0 && (
+              <button
+                className="run-chip-port"
+                title={`Open http://localhost:${run.ports[0]}`}
+                onClick={() => window.nsm.openExternal(`http://localhost:${run.ports[0]}`)}
+              >
+                :{run.ports[0]}
+              </button>
+            )}
+            <button
+              className="btn btn-sm btn-ghost"
+              title={`Restart ${run.script}`}
+              onClick={() => onRestart(run.runId)}
+            >
+              <RotateCw size={13} />
+            </button>
+            <button
+              className="btn btn-sm btn-ghost run-chip-stop"
+              title={`Stop ${run.script}`}
+              onClick={() => onStop(run.runId)}
+            >
+              <Square size={13} />
+            </button>
+          </div>
+        ))}
+
         <button
-          className="btn btn-primary"
+          className={`btn ${liveRuns.length > 0 ? '' : 'btn-primary'}`}
           onClick={() => setShowStart(true)}
           disabled={!!detail.error}
+          title={liveRuns.length > 0 ? 'Start another script' : undefined}
         >
-          <Play size={15} /> Start Server
+          <Play size={15} /> {liveRuns.length > 0 ? 'Start another' : 'Start Server'}
         </button>
         <button
           className="btn btn-ghost"

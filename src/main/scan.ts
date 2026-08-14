@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { DetectedServer } from '@shared/types'
 import { getProjects, normalizePath } from './store'
-import { getRunForPid, listRuns, reconcileRuns } from './servers'
+import { getRunForPid, listRuns, reconcileRuns, setRunPorts } from './servers'
 
 const execFileAsync = promisify(execFile)
 
@@ -44,11 +44,8 @@ export async function scanServers(): Promise<DetectedServer[]> {
   const byPid = new Map<number, ProcessInfo>()
   for (const proc of processes) byPid.set(proc.pid, proc)
 
-  // Adopt servers left running by a previous session and retire dead ones. This
-  // reuses the process table we just paid for.
-  reconcileRuns(byPid)
-
   const portsByPid = new Map<number, Set<number>>()
+  const pidByPort = new Map<number, number>()
   for (const entry of listening) {
     let set = portsByPid.get(entry.pid)
     if (!set) {
@@ -56,7 +53,12 @@ export async function scanServers(): Promise<DetectedServer[]> {
       portsByPid.set(entry.pid, set)
     }
     set.add(entry.port)
+    pidByPort.set(entry.port, entry.pid)
   }
+
+  // Adopt servers left running by a previous session and retire dead ones. This
+  // reuses the process table and port map we just paid for.
+  reconcileRuns(byPid, pidByPort)
 
   const projects = getProjects()
   const servers: DetectedServer[] = []
@@ -114,6 +116,11 @@ export async function scanServers(): Promise<DetectedServer[]> {
       script: run.script,
       startedAt: run.startedAt
     })
+  }
+
+  // Remember where each run was seen, so it can be found again after a restart.
+  for (const server of servers) {
+    if (server.runId && server.ports.length > 0) setRunPorts(server.runId, server.ports)
   }
 
   return servers.sort((a, b) => {
