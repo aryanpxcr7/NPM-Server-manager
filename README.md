@@ -67,6 +67,18 @@ src/
   shared/      types shared across all three
 ```
 
+## Contributing
+
+| Document | Purpose |
+| --- | --- |
+| [`CLAUDE.md`](CLAUDE.md) | Conventions, commands and codebase-specific rules |
+| [`docs/STATUS.md`](docs/STATUS.md) | Current state, what's verified, what's pending |
+| [`docs/DECISIONS.md`](docs/DECISIONS.md) | Why the architecture is the way it is |
+
+Start with `docs/STATUS.md`. Check `docs/DECISIONS.md` before changing a core
+mechanism — several obvious-looking improvements have already been ruled out for
+concrete reasons.
+
 ## Requirements
 
 Windows 10/11 and Node.js on your `PATH`. The app reports the Node and npm versions it found in the bottom-left corner.
