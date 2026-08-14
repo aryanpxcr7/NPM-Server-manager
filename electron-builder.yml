@@ -19,6 +19,12 @@ extraResources:
 
 asar: true
 
+# node-pty is a native module: its .node files and the sibling package holding
+# them have to sit on disk as real files, because `require` cannot load a binary
+# from inside the asar archive.
+asarUnpack:
+  - "**/node_modules/@lydell/**"
+
 win:
   icon: build/icon.ico
   target:

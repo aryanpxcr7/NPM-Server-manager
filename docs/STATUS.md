@@ -1,7 +1,7 @@
 # Project status
 
 **Last updated:** 2026-08-14
-**Version:** 0.3.6
+**Version:** 0.3.6 (plus an unreleased integrated terminal on `main`)
 **Source:** https://github.com/aryanpxcr7/NPM-Server-manager
 **Releases:** https://github.com/aryanpxcr7/NPM-SM-Releases  (installers are published here, not to the source repo)
 
@@ -29,6 +29,12 @@ and the app **checks for its own updates** against the releases repo.
 0.3.6 added the **settings dialog** (25 themes, behaviour, rebindable shortcuts),
 **keyboard shortcuts**, **open in browser when ready** on the Start Server dialog,
 and **Ctrl+click links** in the log panel.
+
+Unreleased on `main`: an **integrated terminal** (real ConPTY through node-pty,
+drawn with xterm.js) in a resizable bottom dock that now has two tabs, *Logs* and
+*Terminal*. Verified end to end against a running app — see the table below and
+`docs/DECISIONS.md` §19. **This has not been released yet:** `package.json` is
+still 0.3.6, and cutting 0.3.7 means following the release procedure below.
 
 Published: **v0.1.0** (history only), **v0.2.0** (defective — see below),
 **v0.3.0**, **v0.3.1**, **v0.3.2**, **v0.3.3**, **v0.3.4**, **v0.3.5**,
@@ -111,6 +117,9 @@ Each of these was checked against real data, not assumed:
 | Shortcut binding logic | 30/30 assertions against the real `lib/shortcuts.ts` and `lib/settings.ts` (esbuild → node, with a localStorage stub): combo validation, override resolution, the combo→id lookup, key-chip labels, round-tripping through storage, and coercion of stored bindings that are invalid, duplicated, unknown, or for a shortcut that has since become fixed |
 | Theme palettes | `npm run check:themes` measures all 25 against the pairs the UI actually renders (body/dim/faint text on the background, button label on the accent, accent on the background) and the dark/light flag against the background's luminance: 25/25 pass. Ayu Light needed its accent darkened — the published `#fa8d3e` is 2.3:1 on its own background |
 | The 0.3.6 release itself | Anonymous check of what a user's app sees: `releases/latest` returns tag `v0.3.6`, not a draft, with all four assets. The installer downloaded anonymously is 82,130,032 bytes, starts `MZ`, and its SHA-256 matches the published `SHA256SUMS.txt`. Before upload, the packaged `app.asar` was grepped for markers of all four of the day's changes, so it cannot be a stale bundle like v0.2.0 |
+| node-pty under this Electron | Loaded `@lydell/node-pty` in Electron 33, spawned a real ConPTY, wrote `echo`, got the output back, and killed it. Kill behaviour measured both ways: `pty.kill()` took 145 ms and took a grandchild `node` with it; `taskkill /T /F` took 1.1 s for the same result. This was checked *before* anything was built on it |
+| The integrated terminal, driven for real | 28 checks over three passes against the built app, driven over CDP with real key events (`Input.dispatchKeyEvent`), reading back the text on screen. Pass 1 (12): the panel opens a session by itself, PowerShell draws its prompt, typing `echo NSM-PROBE-4242` comes back echoed, output survives switching to Logs and back, the + button opens a second terminal, closing one tab leaves the other running, and Ctrl+` hides and restores the dock *from inside the shell*. Pass 2 (9): opened from a project's toolbar, the session's cwd is the project folder, the prompt shows it, `node -e "console.log(process.cwd())"` prints `…\VibeCoding Projects\NPM Server manager` — a path with a space, which has broken this codebase before — and typing `exit` marks the tab exited and says so on screen. Pass 3 (7): three shells detected, the picker offers them, and a Git Bash session opens and draws its MINGW64 prompt |
+| Terminals do not outlive the app | Both driven runs ended with a graceful quit; every shell pid was gone afterwards, with no stray `powershell`/`cmd`/`bash` left behind |
 | Log link parser | 13/13 cases through the real `lib/links.ts` (esbuild → node): Vite/Next banners, bare `localhost:8080`, trailing `.` and `)`, ANSI-wrapped URLs, `0.0.0.0` → `localhost`, `[::1]`, two URLs on one line, and non-loopback links correctly *not* auto-opened |
 
 ---
@@ -140,6 +149,17 @@ Each of these was checked against real data, not assumed:
   the checkbox nor a Ctrl+click has been exercised in a running window. The
   wiring to verify: the log fast path (`firstServerUrl` in `App.tsx`'s `onLog`),
   the port fallback (the effect over `runs`), and the 90 s give-up toast.
+
+- **Terminal paths not covered by the three driven passes:** dragging the dock's
+  resize handle (the height *setting* round-trips, the drag itself was never
+  performed), the terminal font-size buttons in Settings, copy and paste
+  (`Ctrl+C`/`Ctrl+V`/right-click through the Electron clipboard), PowerShell 7 —
+  `pwsh.exe` is not installed on this machine, so only its `existsSync` lookup is
+  exercised — and the 16-session cap.
+- **The terminal in a packaged build.** It works from `out/`, but the native
+  binary has to be *outside* the asar; `electron-builder.yml` now unpacks
+  `node_modules/@lydell/**` for that reason. Nobody has run `npm run dist` since,
+  so confirm a terminal opens in the installed copy before publishing 0.3.7.
 
 These paths exist and typecheck but have never been executed. Do not describe them
 as working.
@@ -230,6 +250,18 @@ on next launch. Consequences:
 - If npm exits but its child keeps the port, the run retires while the port stays
   bound. The scanner then shows it as external, which is stoppable but not
   restartable.
+
+---
+
+**Integrated terminals do the opposite: they close when the app quits.** A shell
+nobody can type into is not work in progress, it is a process holding a folder
+open, so `before-quit` ends every session. Consequences worth knowing:
+
+- Something long-running started *in a terminal* (a build, a watch) dies with the
+  window, and the quit dialog does not mention it — that dialog is still gated on
+  dev servers only. Start anything you want to survive as a server, not a terminal.
+- Terminal scrollback is memory only, capped at 256 KB per session. It is not
+  written to disk the way server logs are, and it does not survive a quit.
 
 ---
 

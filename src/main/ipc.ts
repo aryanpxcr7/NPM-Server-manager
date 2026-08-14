@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import type { IpcResult, ProjectColor, UpdateMode } from '@shared/types'
 import { PROJECT_COLORS } from '@shared/types'
 import { getProjectDetail, importProject, openTerminal } from './projects'
@@ -27,6 +27,16 @@ import {
   renameProject,
   setProjectColor
 } from './store'
+import {
+  closeSession,
+  createSession,
+  getBuffer,
+  listSessions,
+  listShells,
+  resizeSession,
+  terminalEvents,
+  writeSession
+} from './terminal'
 import { resolveToolchain } from './toolchain'
 import { checkForUpdate, downloadUpdate, installUpdate, releasesPage } from './updates'
 
@@ -155,6 +165,53 @@ export function registerIpc(
     return true
   })
 
+  // --- Terminal -----------------------------------------------------------
+  handle('terminal:shells', () => listShells())
+  handle('terminal:list', () => listSessions())
+  handle('terminal:buffer', (id: unknown) => getBuffer(requireString(id, 'a terminal id')))
+
+  handle('terminal:create', (options: unknown) => {
+    const raw = (options ?? {}) as Record<string, unknown>
+    return createSession({
+      // Only ever a folder we already know about: the renderer passes a project
+      // id, never a path it made up.
+      projectId: typeof raw.projectId === 'string' ? raw.projectId : null,
+      shellId: typeof raw.shellId === 'string' ? raw.shellId : null,
+      cols: typeof raw.cols === 'number' ? raw.cols : undefined,
+      rows: typeof raw.rows === 'number' ? raw.rows : undefined
+    })
+  })
+
+  handle('terminal:write', (id: unknown, data: unknown) => {
+    if (typeof data !== 'string') throw new Error('Expected terminal input.')
+    writeSession(requireString(id, 'a terminal id'), data)
+    return true
+  })
+
+  handle('terminal:resize', (id: unknown, cols: unknown, rows: unknown) => {
+    if (typeof cols !== 'number' || typeof rows !== 'number') {
+      throw new Error('Expected terminal dimensions.')
+    }
+    resizeSession(requireString(id, 'a terminal id'), cols, rows)
+    return true
+  })
+
+  handle('terminal:close', (id: unknown) => {
+    closeSession(requireString(id, 'a terminal id'))
+    return true
+  })
+
+  // The terminal's own copy and paste. The renderer has no clipboard access it
+  // can rely on over file://, and xterm needs the text synchronously enough that
+  // a permission prompt would be in the way.
+  handle('clipboard:read', () => clipboard.readText())
+  handle('clipboard:write', (text: unknown) => {
+    // Not requireString: a terminal selection of whitespace is still a selection.
+    if (typeof text !== 'string') throw new Error('Expected text to copy.')
+    clipboard.writeText(text)
+    return true
+  })
+
   // --- Updates ------------------------------------------------------------
   handle('updates:check', () => checkForUpdate())
   handle('updates:releases-page', () => releasesPage())
@@ -198,6 +255,17 @@ export function registerIpc(
   })
 
   // --- Push events to the renderer ---------------------------------------
-  serverEvents.on('log', (line) => getWindow()?.webContents.send('servers:log-line', line))
-  serverEvents.on('run-changed', (run) => getWindow()?.webContents.send('servers:run-changed', run))
+  // Output can still arrive while the window is being torn down -- a terminal
+  // being killed on quit emits right up to the last moment -- and sending to a
+  // destroyed webContents throws from inside the emitter.
+  const push = (channel: string, payload: unknown): void => {
+    const win = getWindow()
+    if (win && !win.isDestroyed()) win.webContents.send(channel, payload)
+  }
+
+  serverEvents.on('log', (line) => push('servers:log-line', line))
+  serverEvents.on('run-changed', (run) => push('servers:run-changed', run))
+
+  terminalEvents.on('data', (chunk) => push('terminal:data', chunk))
+  terminalEvents.on('session', (session) => push('terminal:session', session))
 }

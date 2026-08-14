@@ -844,13 +844,13 @@ table.pkg-table {
 
 /* ---------- Log panel ---------- */
 
+/* Height and the top border belong to the dock now; the panel just fills it. */
 .log-panel {
-  border-top: 1px solid var(--border);
   background: var(--bg-inset);
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
-  height: 260px;
+  flex: 1;
+  min-height: 0;
 }
 
 .log-tabs {
@@ -940,6 +940,258 @@ table.pkg-table {
 
 .log-output.mod-held .log-link:hover {
   color: var(--accent);
+}
+
+/* ---------- Bottom dock ---------- */
+
+.dock {
+  position: relative;
+  border-top: 1px solid var(--border);
+  background: var(--bg-inset);
+  box-shadow: var(--shadow-up);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-height: 0;
+}
+
+/* Sits over the dock's own top border, so the grab area is where the edge looks. */
+.dock-resize {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 7px;
+  cursor: ns-resize;
+  z-index: 3;
+}
+
+.dock-resize:hover {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.dock-head {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.dock-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  transition: background 0.12s, color 0.12s;
+}
+
+.dock-tab:hover {
+  color: var(--text-dim);
+}
+
+.dock-tab.active {
+  background: var(--panel);
+  color: var(--text);
+}
+
+.dock-tab .count {
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  background: var(--border);
+  color: var(--text-dim);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.dock-tab.active .count {
+  background: var(--accent-line);
+  color: var(--accent-hover);
+}
+
+.dock-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.dock-pane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* `display: flex` above would otherwise beat the browser's [hidden] rule. */
+.dock-pane[hidden] {
+  display: none;
+}
+
+.dock-empty {
+  padding: 18px;
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.dock-reopen {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+}
+
+/* ---------- Terminal ---------- */
+
+.term-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.term-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px 5px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+
+.term-tab {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  white-space: nowrap;
+  padding-right: 3px;
+  transition: background 0.12s, color 0.12s;
+}
+
+.term-tab:hover {
+  background: var(--panel);
+}
+
+.term-tab.active {
+  background: var(--panel);
+  color: var(--text);
+}
+
+.term-tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 6px 5px 10px;
+  font-size: 12.5px;
+  color: inherit;
+}
+
+.term-tab-shell {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.term-tab-close {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 4px;
+  color: var(--text-faint);
+}
+
+.term-tab-close:hover {
+  background: color-mix(in srgb, var(--red) 20%, transparent);
+  color: var(--red-text);
+}
+
+.term-new {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Opens upwards: the tab strip is at the top of a panel pinned to the window. */
+.term-shell-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 190px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  z-index: 20;
+}
+
+.term-shell-menu button {
+  padding: 7px 10px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  text-align: left;
+}
+
+.term-shell-menu button:hover {
+  background: var(--bg-raised);
+  color: var(--text);
+}
+
+.term-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+/*
+ * Every session is stacked in the same box and hidden with `visibility` rather
+ * than `display`, so an inactive terminal keeps its layout and can still be
+ * measured -- a terminal fitted to a zero-sized box tells its shell it has one
+ * column, and some programs redraw accordingly.
+ */
+.term-host {
+  position: absolute;
+  inset: 0;
+  padding: 6px 4px 6px 10px;
+  visibility: hidden;
+}
+
+.term-host.active {
+  visibility: visible;
+}
+
+.term-host .xterm {
+  height: 100%;
+}
+
+/* xterm paints its own background from the palette; the panel's shows through. */
+.term-host .xterm .xterm-viewport {
+  background: transparent !important;
+}
+
+.term-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.term-empty p {
+  margin: 0;
 }
 
 /* ---------- Toasts ---------- */

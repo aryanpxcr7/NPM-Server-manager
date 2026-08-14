@@ -1,5 +1,5 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, RotateCw, Square, Trash2 } from 'lucide-react'
+import { RotateCw, Square, Trash2 } from 'lucide-react'
 import type { ManagedRun, ServerLogLine } from '@shared/types'
 import { splitLinks } from '../lib/links'
 
@@ -47,7 +47,6 @@ interface Props {
   onStop: (runId: string) => void
   onRestart: (runId: string) => void
   onClearFinished: () => void
-  onCollapse: () => void
 }
 
 export default function LogPanel({
@@ -57,8 +56,7 @@ export default function LogPanel({
   onSelect,
   onStop,
   onRestart,
-  onClearFinished,
-  onCollapse
+  onClearFinished
 }: Props): React.JSX.Element | null {
   const outputRef = useRef<HTMLDivElement>(null)
   const [pinned, setPinned] = useState(true)
@@ -133,9 +131,6 @@ export default function LogPanel({
         )}
         <button className="btn-ghost btn-sm" onClick={onClearFinished} title="Clear finished runs">
           <Trash2 size={14} />
-        </button>
-        <button className="btn-ghost btn-sm" onClick={onCollapse} title="Hide logs">
-          <ChevronDown size={14} />
         </button>
       </div>
 

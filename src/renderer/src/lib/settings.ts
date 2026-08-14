@@ -18,6 +18,15 @@ export interface Settings {
   devScript: string
   /** How often the port table is re-read while the window is visible. */
   scanIntervalMs: number
+  /**
+   * Shell the integrated terminal starts, by the id `terminal.shells()` reports.
+   * `auto` takes the best one found on the machine, which is what most people
+   * want and what a fresh install has to do anyway.
+   */
+  terminalShell: string
+  terminalFontSize: number
+  /** Height of the bottom dock in pixels, as left by the drag handle. */
+  dockHeight: number
   /** Rebound shortcuts, by id. Anything absent keeps its default combo. */
   shortcuts: ShortcutBindings
 }
@@ -27,10 +36,18 @@ export const DEFAULT_SETTINGS: Settings = {
   openWhenReady: false,
   devScript: 'dev',
   scanIntervalMs: 4000,
+  terminalShell: 'auto',
+  terminalFontSize: 12,
+  dockHeight: 260,
   shortcuts: {}
 }
 
 export const SCAN_INTERVALS = [2000, 4000, 10_000, 30_000] as const
+export const TERMINAL_FONT_SIZES = [11, 12, 13, 14, 16] as const
+
+/** Bounds for the dock drag handle: below this it is unusable, above it useless. */
+export const DOCK_MIN_HEIGHT = 140
+export const DOCK_MAX_HEIGHT = 900
 
 const KEY = 'nsm.settings'
 /** Written by the Start Server dialog before there was a settings store. */
@@ -74,6 +91,8 @@ function coerce(raw: unknown): Settings {
       : DEFAULT_SETTINGS.devScript
 
   const interval = Number(value.scanIntervalMs)
+  const fontSize = Number(value.terminalFontSize)
+  const dockHeight = Number(value.dockHeight)
 
   return {
     shortcuts: coerceShortcuts(value.shortcuts),
@@ -85,7 +104,23 @@ function coerce(raw: unknown): Settings {
     devScript,
     scanIntervalMs: SCAN_INTERVALS.includes(interval as (typeof SCAN_INTERVALS)[number])
       ? interval
-      : DEFAULT_SETTINGS.scanIntervalMs
+      : DEFAULT_SETTINGS.scanIntervalMs,
+    // Not checked against the shells actually present: the machine can change
+    // between sessions, and `terminal.create` falls back on its own when the
+    // stored shell is gone.
+    terminalShell:
+      typeof value.terminalShell === 'string' && value.terminalShell.trim().length > 0
+        ? value.terminalShell.trim()
+        : DEFAULT_SETTINGS.terminalShell,
+    terminalFontSize: TERMINAL_FONT_SIZES.includes(
+      fontSize as (typeof TERMINAL_FONT_SIZES)[number]
+    )
+      ? fontSize
+      : DEFAULT_SETTINGS.terminalFontSize,
+    dockHeight:
+      Number.isFinite(dockHeight) && dockHeight >= DOCK_MIN_HEIGHT && dockHeight <= DOCK_MAX_HEIGHT
+        ? Math.round(dockHeight)
+        : DEFAULT_SETTINGS.dockHeight
   }
 }
 

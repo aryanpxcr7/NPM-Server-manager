@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { registerIpc } from './ipc'
 import { detachAll, initServers, liveRunCount, stopAll } from './servers'
+import { closeAllSessions } from './terminal'
 
 let mainWindow: BrowserWindow | null = null
 /** Set once the user has chosen to quit, so the close handler stops intercepting. */
@@ -167,9 +168,14 @@ if (!app.requestSingleInstanceLock()) {
 
   // Servers this app started keep running unless the user asked otherwise; all
   // that is needed here is to stop tailing and write out the run index.
+  //
+  // Integrated terminals are the opposite: a shell whose window is gone can never
+  // be typed into again, so it is closed rather than orphaned. See
+  // docs/DECISIONS.md §19.
   app.on('before-quit', () => {
     quitting = true
     detachAll()
+    closeAllSessions()
   })
 
 }

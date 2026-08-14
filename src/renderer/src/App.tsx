@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  ChevronDown,
   FolderPlus,
   Layers,
   RefreshCw,
+  ScrollText,
   Server,
   Settings as SettingsIcon,
   Terminal,
@@ -25,11 +27,13 @@ import QuitDialog from './components/QuitDialog'
 import ServersView from './components/ServersView'
 import SettingsDialog from './components/SettingsDialog'
 import { SettingsProvider, useSettings } from './components/SettingsProvider'
+import TerminalPanel from './components/TerminalPanel'
 import UpdateBanner from './components/UpdateBanner'
 import UpdateDialog from './components/UpdateDialog'
 import { ToastProvider, useToast } from './components/Toasts'
 import { firstServerUrl } from './lib/links'
-import { bindingLookup, comboOf } from './lib/shortcuts'
+import { DOCK_MAX_HEIGHT, DOCK_MIN_HEIGHT } from './lib/settings'
+import { bindingLookup, comboOf, resolveBindings } from './lib/shortcuts'
 
 /**
  * How long "open in browser when ready" waits for a starting server to reveal an
@@ -39,9 +43,12 @@ const OPEN_TIMEOUT_MS = 90_000
 
 type View = { kind: 'servers' } | { kind: 'project'; id: string }
 
+/** Which half of the bottom dock is on screen. */
+type DockTab = 'logs' | 'terminal'
+
 function Shell(): React.JSX.Element {
   const toast = useToast()
-  const { settings } = useSettings()
+  const { settings, update: updateSettings } = useSettings()
 
   const [projects, setProjects] = useState<Project[]>([])
   const [view, setView] = useState<View>({ kind: 'servers' })
@@ -50,7 +57,12 @@ function Shell(): React.JSX.Element {
   const [runs, setRuns] = useState<ManagedRun[]>([])
   const [logs, setLogs] = useState<Record<string, ServerLogLine[]>>({})
   const [activeRunId, setActiveRunId] = useState<string | null>(null)
-  const [showLogs, setShowLogs] = useState(true)
+  const [dockOpen, setDockOpen] = useState(true)
+  const [dockTab, setDockTab] = useState<DockTab>('logs')
+  /** Live height while the dock is being dragged; null means "use the setting". */
+  const [dragHeight, setDragHeight] = useState<number | null>(null)
+  /** Bumped to ask the terminal panel for a new session in the open project. */
+  const [terminalRequest, setTerminalRequest] = useState(0)
   const [scanning, setScanning] = useState(false)
   const [toolchain, setToolchain] = useState<ToolchainInfo | null>(null)
   const [toolchainError, setToolchainError] = useState<string | null>(null)
@@ -291,7 +303,8 @@ function Shell(): React.JSX.Element {
       const run = await window.nsm.servers.start(projectId, script)
       setRuns((current) => [run, ...current.filter((r) => r.runId !== run.runId)])
       setActiveRunId(run.runId)
-      setShowLogs(true)
+      setDockTab('logs')
+      setDockOpen(true)
       toast.success(`Started "${script}".`)
       if (openWhenReady) armOpenOnStart(run.runId, script)
       void scan()
@@ -397,6 +410,59 @@ function Shell(): React.JSX.Element {
   /** Combo → shortcut, with the user's rebindings applied. */
   const bindings = useMemo(() => bindingLookup(settings.shortcuts), [settings.shortcuts])
 
+  /**
+   * The one combo the integrated terminal must not swallow. Everything else typed
+   * into a shell belongs to the shell -- Ctrl+L clears its screen, Ctrl+R searches
+   * its history -- so the panel can only be closed by the key that opened it.
+   */
+  const terminalCombo = useMemo(
+    () => resolveBindings(settings.shortcuts)['terminal-panel'],
+    [settings.shortcuts]
+  )
+
+  const dockHeight = dragHeight ?? settings.dockHeight
+
+  /** Shows `tab`, or hides the dock when that tab is already the one showing. */
+  const toggleDock = useCallback(
+    (tab: DockTab): void => {
+      setDockOpen((open) => !(open && dockTab === tab))
+      setDockTab(tab)
+    },
+    [dockTab]
+  )
+
+  /** Opens the terminal on the current project, always in a fresh session. */
+  const openTerminalHere = useCallback((): void => {
+    setDockTab('terminal')
+    setDockOpen(true)
+    setTerminalRequest((n) => n + 1)
+  }, [])
+
+  const startDockResize = (event: React.MouseEvent): void => {
+    event.preventDefault()
+    const startY = event.clientY
+    const startHeight = dockHeight
+    // Leaves room for the topbar and some of the view above it, so the dock can
+    // never be dragged over the whole window.
+    const ceiling = Math.min(DOCK_MAX_HEIGHT, Math.max(DOCK_MIN_HEIGHT, window.innerHeight - 220))
+    const heightAt = (clientY: number): number =>
+      Math.min(ceiling, Math.max(DOCK_MIN_HEIGHT, Math.round(startHeight + (startY - clientY))))
+
+    const onMove = (e: MouseEvent): void => setDragHeight(heightAt(e.clientY))
+    const onUp = (e: MouseEvent): void => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      const final = heightAt(e.clientY)
+      setDragHeight(null)
+      // Written once, on release: persisting every mousemove would hammer
+      // localStorage for a value nobody reads until the next launch.
+      updateSettings({ dockHeight: final })
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
   /** The run the shortcuts act on: whatever the log panel is showing, else the newest. */
   const activeRun = useMemo(
     () => liveRuns.find((r) => r.runId === activeRunId) ?? liveRuns[0] ?? null,
@@ -430,7 +496,12 @@ function Shell(): React.JSX.Element {
     if (!e.ctrlKey && !e.metaKey) return
 
     const target = e.target as HTMLElement | null
-    if (
+    // A focused terminal is a shell, not a text field: everything typed into it
+    // is meant for the shell, except the combo that hides the panel again.
+    const inTerminal = target?.closest?.('.xterm') != null
+    if (inTerminal) {
+      if (comboOf(e) !== terminalCombo) return
+    } else if (
       target?.isContentEditable ||
       target?.tagName === 'INPUT' ||
       target?.tagName === 'TEXTAREA' ||
@@ -466,7 +537,9 @@ function Shell(): React.JSX.Element {
       case 'servers-view':
         return act(() => setView({ kind: 'servers' }))
       case 'toggle-logs':
-        return act(() => setShowLogs((v) => !v))
+        return act(() => toggleDock('logs'))
+      case 'terminal-panel':
+        return act(() => toggleDock('terminal'))
       case 'rescan':
         return act(() => void scan(true))
       case 'add-project':
@@ -662,6 +735,7 @@ Right-click for options`}
             onRestart={restartRun}
             onRemove={removeProject}
             onRefreshDetail={() => void loadDetail(view.id)}
+            onOpenTerminalPanel={openTerminalHere}
           />
         ) : (
           <div className="content">
@@ -672,37 +746,98 @@ Right-click for options`}
           </div>
         )}
 
-        {showLogs && runs.length > 0 && (
-          <LogPanel
-            runs={runs}
-            logs={logs}
-            activeRunId={activeRunId}
-            onSelect={setActiveRunId}
-            onStop={async (runId) => {
-              try {
-                await window.nsm.servers.stop(runId)
-                void scan()
-              } catch (err) {
-                toast.error(err instanceof Error ? err.message : String(err))
-              }
-            }}
-            onRestart={restartRun}
-            onClearFinished={async () => {
-              await window.nsm.servers.clearFinished()
-              setRuns(await window.nsm.servers.runs())
-            }}
-            onCollapse={() => setShowLogs(false)}
-          />
+        {dockOpen && (
+          <div className="dock" style={{ height: dockHeight }}>
+            <div
+              className="dock-resize"
+              onMouseDown={startDockResize}
+              title="Drag to resize"
+              role="separator"
+              aria-orientation="horizontal"
+            />
+
+            <div className="dock-head">
+              <button
+                className={`dock-tab ${dockTab === 'logs' ? 'active' : ''}`}
+                onClick={() => setDockTab('logs')}
+              >
+                <ScrollText size={13} /> Logs
+                {runs.length > 0 && <span className="count">{runs.length}</span>}
+              </button>
+              <button
+                className={`dock-tab ${dockTab === 'terminal' ? 'active' : ''}`}
+                onClick={() => setDockTab('terminal')}
+              >
+                <Terminal size={13} /> Terminal
+              </button>
+
+              <div style={{ flex: 1 }} />
+
+              <button
+                className="btn-ghost btn-sm"
+                onClick={() => setDockOpen(false)}
+                title="Hide the panel"
+                aria-label="Hide the panel"
+              >
+                <ChevronDown size={14} />
+              </button>
+            </div>
+
+            <div className="dock-body">
+              <div className="dock-pane" hidden={dockTab !== 'logs'}>
+                {runs.length > 0 ? (
+                  <LogPanel
+                    runs={runs}
+                    logs={logs}
+                    activeRunId={activeRunId}
+                    onSelect={setActiveRunId}
+                    onStop={async (runId) => {
+                      try {
+                        await window.nsm.servers.stop(runId)
+                        void scan()
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : String(err))
+                      }
+                    }}
+                    onRestart={restartRun}
+                    onClearFinished={async () => {
+                      await window.nsm.servers.clearFinished()
+                      setRuns(await window.nsm.servers.runs())
+                    }}
+                  />
+                ) : (
+                  <div className="dock-empty">
+                    Nothing started from here yet. Servers you start show their output on this tab.
+                  </div>
+                )}
+              </div>
+
+              {/* Kept mounted while the dock is open so switching to the logs and
+                  back does not re-attach and redraw every terminal. */}
+              <div className="dock-pane" hidden={dockTab !== 'terminal'}>
+                <TerminalPanel
+                  projectId={view.kind === 'project' ? view.id : null}
+                  visible={dockTab === 'terminal'}
+                  newSessionRequest={terminalRequest}
+                  toggleCombo={terminalCombo}
+                  onError={toast.error}
+                />
+              </div>
+            </div>
+          </div>
         )}
 
-        {!showLogs && liveRuns.length > 0 && (
-          <button
-            className="btn"
-            style={{ margin: 12, alignSelf: 'flex-start' }}
-            onClick={() => setShowLogs(true)}
-          >
-            <Terminal size={14} /> Show logs ({liveRuns.length} running)
-          </button>
+        {!dockOpen && (
+          <div className="dock-reopen">
+            <button className="btn btn-sm" onClick={() => toggleDock('terminal')}>
+              <Terminal size={14} /> Terminal
+            </button>
+            {liveRuns.length > 0 && (
+              <button className="btn btn-sm" onClick={() => toggleDock('logs')}>
+                <ScrollText size={14} /> Logs ({liveRuns.length} running)
+              </button>
+            )}
+          </div>
         )}
 
         {update?.available && (update.mandatory || !updateDismissed) && (
@@ -746,6 +881,10 @@ Right-click for options`}
         <ProjectContextMenu
           target={menu}
           onClose={() => setMenu(null)}
+          onOpenTerminalPanel={(project) => {
+            setView({ kind: 'project', id: project.id })
+            openTerminalHere()
+          }}
           onOpenTerminal={openTerminal}
           onOpenFolder={(project) => void window.nsm.projects.reveal(project.id)}
           onSetColor={setProjectColor}

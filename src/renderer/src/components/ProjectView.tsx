@@ -8,6 +8,7 @@ import {
   RefreshCw,
   RotateCw,
   Square,
+  Terminal,
   TerminalSquare,
   Trash2
 } from 'lucide-react'
@@ -34,6 +35,8 @@ interface Props {
   onRestart: (runId: string) => void
   onRemove: (projectId: string) => void
   onRefreshDetail: () => void
+  /** Opens the app's own terminal in this folder, in the bottom dock. */
+  onOpenTerminalPanel: () => void
 }
 
 export default function ProjectView({
@@ -45,7 +48,8 @@ export default function ProjectView({
   onStop,
   onRestart,
   onRemove,
-  onRefreshDetail
+  onRefreshDetail,
+  onOpenTerminalPanel
 }: Props): React.JSX.Element {
   const toast = useToast()
   const { project } = detail
@@ -200,7 +204,14 @@ export default function ProjectView({
         </button>
         <button
           className="btn btn-ghost"
-          title="Open a terminal in this folder"
+          title="Terminal in this folder"
+          onClick={onOpenTerminalPanel}
+        >
+          <Terminal size={16} />
+        </button>
+        <button
+          className="btn btn-ghost"
+          title="Open an external terminal in this folder"
           onClick={async () => {
             try {
               await window.nsm.projects.openTerminal(project.id)

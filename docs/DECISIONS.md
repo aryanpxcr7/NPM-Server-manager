@@ -522,3 +522,68 @@ and measures the contrast of every pair the UI actually renders. Each palette is
 transcribed by hand from a published theme, and one wrong digit produces text
 nobody can read; Ayu Light's own accent (`#fa8d3e`, 2.3:1 on its background) was
 caught this way and darkened.
+
+---
+
+## 19. The integrated terminal is a real pseudoterminal, not a piped shell
+
+**Decided:** 2026-08-14.
+
+`main/terminal.ts` starts each session with **node-pty over ConPTY** and draws it
+in the renderer with **xterm.js**.
+
+**Why not `spawn('powershell.exe')` with pipes**, which would have added no
+dependency at all? Because a shell asks the OS whether it is talking to a
+terminal, and behaves completely differently when the answer is no: no prompt
+redraw, no colour, no arrow keys, no history, no Ctrl+C, and anything that draws a
+progress bar or a spinner — `npm install`, `vite`, `next dev` — emits either
+nothing or a wall of escape codes. A pipe gives you a command runner. The point of
+this feature is a terminal.
+
+**Why `@lydell/node-pty` rather than `node-pty` itself.** Both are the same code;
+the fork ships **only the current platform's prebuilt binary** and never falls back
+to node-gyp. Upstream carries prebuilds for six platforms plus winpty, which
+electron-builder would pack into a Windows-only installer. The binaries are
+Node-API, so they load in Electron with no rebuild step — verified by loading the
+module under this project's Electron and driving a real ConPTY before any of this
+was built on top of it.
+
+**The shell rule in `CLAUDE.md` still stands, and this is not an exception to it.**
+§2 forbids running *npm* through a shell because project paths and script names
+come off the filesystem and must never be parsed as commands. Here the shell is
+the product: the user picks it and types into it. What matters is that **nothing
+the app derives goes into it** — the only thing this app ever writes to a pty is
+the user's own keystrokes and a clipboard paste they asked for. The folder to
+start in is passed as `cwd` in the spawn options, never as a `cd` command, so a
+project called `my app & calc` is a directory name and not two commands.
+
+**Terminals die with the app; servers do not.** §8 makes dev servers outlive the
+window because closing a manager is not a statement about the work behind it. A
+terminal is the opposite: it is a window into a shell, and a shell nobody can type
+into is not doing anything useful — it is just a process holding a folder open.
+`before-quit` closes every session. `pty.kill()` goes through ConPTY's console
+process list, which covers the whole tree (measured at ~145 ms including a
+grandchild `node`); `taskkill /T /F` remains as a two-second backstop, because the
+one failure that matters is a shell that will not die.
+
+**The session lives in the main process, the panel only draws it.** Same shape as
+§7: `terminal.ts` keeps 256 KB of scrollback per session, and the panel asks for it
+on mount. That is what makes switching to the Logs tab, closing the dock or
+reloading the renderer harmless — the shell keeps running and the panel redraws
+from the buffer. Live output arriving *during* that request is held in a queue and
+merged by a per-session chunk counter, so nothing is printed twice and nothing is
+dropped.
+
+**xterm gets a palette, not a stylesheet.** It paints to a canvas and cannot read
+CSS custom properties, so `lib/terminal-theme.ts` is the one place a colour is
+computed in TypeScript. It follows §18's rule anyway: every value comes out of the
+eighteen tokens, and the bright ANSI colours are mixed *towards the theme's own
+text colour* rather than towards white — which is what makes them read correctly
+on the seven light themes instead of vanishing.
+
+**Ctrl is the shell's, with one exception.** While a terminal has focus the app's
+shortcut handler stands down completely: Ctrl+L clears the screen, Ctrl+R searches
+history, Ctrl+C interrupts. Only the combo that toggles the panel (Ctrl+` by
+default) is intercepted, because a panel you cannot close from the keyboard is a
+trap. Ctrl+C copies instead of interrupting when — and only when — there is a
+selection, which is what every Windows terminal does.

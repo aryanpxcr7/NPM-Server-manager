@@ -12,6 +12,10 @@ import type {
   ProjectColor,
   ProjectDetail,
   ServerLogLine,
+  TerminalBuffer,
+  TerminalChunk,
+  TerminalSession,
+  TerminalShell,
   UpdateInfo,
   UpdateMode,
   UpdatePlanEntry,
@@ -63,6 +67,30 @@ export interface NsmApi {
     clearFinished: () => Promise<boolean>
     onLog: (handler: (line: ServerLogLine) => void) => () => void
     onRunChanged: (handler: (run: ManagedRun) => void) => () => void
+  }
+
+  terminal: {
+    /** Shells found on this machine, best first. */
+    shells: () => Promise<TerminalShell[]>
+    list: () => Promise<TerminalSession[]>
+    /** Scrollback so far, for a panel that mounted after the session started. */
+    buffer: (id: string) => Promise<TerminalBuffer>
+    create: (options: {
+      projectId?: string | null
+      shellId?: string | null
+      cols?: number
+      rows?: number
+    }) => Promise<TerminalSession>
+    write: (id: string, data: string) => Promise<boolean>
+    resize: (id: string, cols: number, rows: number) => Promise<boolean>
+    close: (id: string) => Promise<boolean>
+    onData: (handler: (chunk: TerminalChunk) => void) => () => void
+    onSession: (handler: (session: TerminalSession) => void) => () => void
+  }
+
+  clipboard: {
+    read: () => Promise<string>
+    write: (text: string) => Promise<boolean>
   }
 
   updates: {

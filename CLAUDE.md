@@ -66,6 +66,9 @@ IPC error. Never call `ipcMain.handle` directly; always go through `handle()`.
 | `main/packages.ts` | `npm ls` / `npm outdated` parsing, severity, update planning |
 | `main/projects.ts` | `package.json` reading, script classification |
 | `main/store.ts` | Project persistence (atomic JSON writes to `userData`) |
+| `main/terminal.ts` | Integrated terminal: pty sessions, shell detection, scrollback |
+| `renderer/src/components/TerminalPanel.tsx` | xterm.js instances, one per session |
+| `renderer/src/lib/terminal-theme.ts` | The xterm palette, derived from the theme |
 | `renderer/src/lib/themes.ts` | Theme palettes and `applyTheme()` |
 | `renderer/src/lib/settings.ts` | User settings (localStorage), read through `SettingsProvider` |
 | `renderer/src/lib/shortcuts.ts` | The shortcut table — reference list *and* dispatch keys |
@@ -82,6 +85,11 @@ time. Add a theme by appending to `THEMES`, then run `npm run check:themes`. See
 spawn `nodeExe` with `npmCli` as the first argument. Project paths and script
 names come from the filesystem and must never reach a command interpreter. See
 `docs/DECISIONS.md` §2.
+
+The integrated terminal in `main/terminal.ts` is the *only* place a shell is
+started on purpose, and it does not weaken that rule: the only thing ever written
+to a pty is the user's own keystrokes. A folder is passed as the spawn's `cwd`,
+never as a `cd` command. Keep it that way. See `docs/DECISIONS.md` §19.
 
 **Never assume Windows paths lack spaces.** `C:\Program Files` and the developer's
 own `VibeCoding Projects` folder both contain them. A `\S+` or `[^\s]+` regex over

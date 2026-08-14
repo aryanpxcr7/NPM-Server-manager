@@ -128,6 +128,48 @@ export interface ManagedRun {
   adopted: boolean
 }
 
+/** A shell the integrated terminal can start, as found on this machine. */
+export interface TerminalShell {
+  id: string
+  label: string
+  /** Absolute path to the executable, shown as the tooltip in the shell picker. */
+  file: string
+}
+
+export type TerminalStatus = 'running' | 'exited'
+
+/** An integrated terminal session: one pty, one shell, one tab. */
+export interface TerminalSession {
+  id: string
+  /** Shown on the tab -- the project name when opened from one, else the shell. */
+  title: string
+  shellId: string
+  shellLabel: string
+  cwd: string
+  /** Set when the terminal was opened in a registered project's folder. */
+  projectId: string | null
+  pid: number
+  startedAt: number
+  status: TerminalStatus
+  exitCode: number | null
+}
+
+/**
+ * A chunk of pty output. `seq` counts chunks for the session, so a renderer that
+ * replays the scrollback can drop the live chunks already contained in it.
+ */
+export interface TerminalChunk {
+  id: string
+  data: string
+  seq: number
+}
+
+/** The scrollback a session has produced, with the sequence number it ends at. */
+export interface TerminalBuffer {
+  data: string
+  seq: number
+}
+
 export interface UpdatePlanEntry {
   name: string
   from: string | null

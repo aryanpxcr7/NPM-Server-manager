@@ -14,6 +14,8 @@ A Windows desktop app for finding, controlling and updating the Node dev servers
 
 **Start servers from a clean popup.** Open a project, hit **Start Server**, and pick from a dialog that leads with *Start Dev Server* and *Start Build Server*, with every other npm script one click away. Output streams into a log panel at the bottom.
 
+**Work in a real terminal, without leaving.** **Ctrl+`** opens a terminal in the bottom panel — a Windows pseudoconsole behind xterm.js, so prompts, colours, arrow keys, tab completion, history, Ctrl+C and progress bars all behave exactly as they do in Windows Terminal. It opens in the folder of the project you have selected. Open as many as you like as tabs, in PowerShell, Command Prompt or Git Bash, and it follows whichever of the 25 themes you are using.
+
 **Manage dependencies.** Every package is listed with its installed, wanted and latest version:
 
 | Colour | Meaning |
@@ -47,8 +49,9 @@ The packaged app loads its UI straight off disk via `file://`. Nothing binds a p
 | Running npm | `node npm-cli.js <args>` spawned directly — **no shell**, so nothing in a folder name or script name can be interpreted as a command |
 | Which Node | The `node.exe` on your `PATH`, not Electron's bundled copy, so nvm switches and engine constraints are respected |
 | Stopping a server | `taskkill /T /F` on the process tree |
+| The integrated terminal | A real ConPTY per session via node-pty, drawn with xterm.js; the shell is spawned with the project folder as its working directory, never sent a `cd` |
 
-Dev servers started through the app are stopped when the app quits, so closing it never leaves a port bound.
+Dev servers started through the app **keep running when you close it**, and are picked back up on the next launch — closing a manager window is not a decision about the work behind it. When servers are running, closing the window asks whether to stop them first. Integrated terminals are the other way round: they close with the app, because a shell nobody can type into is not doing anything.
 
 ## Layout
 
@@ -61,6 +64,7 @@ src/
     packages.ts    npm ls / outdated / update
     projects.ts    package.json reading, script classification
     store.ts       project persistence
+    terminal.ts    pty sessions for the integrated terminal
     ipc.ts         typed IPC surface
   preload/     contextBridge API (contextIsolation on, nodeIntegration off)
   renderer/    React UI

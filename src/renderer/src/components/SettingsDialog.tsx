@@ -1,8 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Check, Command, Palette, RotateCcw, SlidersHorizontal } from 'lucide-react'
+import type { TerminalShell } from '@shared/types'
 import Modal from './Modal'
 import { useSettings } from './SettingsProvider'
-import { DEFAULT_SETTINGS, SCAN_INTERVALS, type Settings } from '../lib/settings'
+import {
+  DEFAULT_SETTINGS,
+  SCAN_INTERVALS,
+  TERMINAL_FONT_SIZES,
+  type Settings
+} from '../lib/settings'
 import {
   comboKeys,
   comboOf,
@@ -40,7 +46,10 @@ const TAB_DEFAULTS: Record<Tab, Partial<Settings>> = {
   behaviour: {
     openWhenReady: DEFAULT_SETTINGS.openWhenReady,
     devScript: DEFAULT_SETTINGS.devScript,
-    scanIntervalMs: DEFAULT_SETTINGS.scanIntervalMs
+    scanIntervalMs: DEFAULT_SETTINGS.scanIntervalMs,
+    terminalShell: DEFAULT_SETTINGS.terminalShell,
+    terminalFontSize: DEFAULT_SETTINGS.terminalFontSize,
+    dockHeight: DEFAULT_SETTINGS.dockHeight
   },
   shortcuts: { shortcuts: {} }
 }
@@ -53,7 +62,10 @@ function isTabDefault(tab: Tab, settings: Settings): boolean {
       return (
         settings.openWhenReady === DEFAULT_SETTINGS.openWhenReady &&
         settings.devScript === DEFAULT_SETTINGS.devScript &&
-        settings.scanIntervalMs === DEFAULT_SETTINGS.scanIntervalMs
+        settings.scanIntervalMs === DEFAULT_SETTINGS.scanIntervalMs &&
+        settings.terminalShell === DEFAULT_SETTINGS.terminalShell &&
+        settings.terminalFontSize === DEFAULT_SETTINGS.terminalFontSize &&
+        settings.dockHeight === DEFAULT_SETTINGS.dockHeight
       )
     case 'shortcuts':
       return Object.keys(settings.shortcuts).length === 0
@@ -242,6 +254,83 @@ function ShortcutTab(): React.JSX.Element {
   )
 }
 
+/**
+ * The terminal half of the Behaviour tab.
+ *
+ * The shell list is read from the main process rather than hardcoded, so the
+ * dropdown only ever offers shells that are actually installed -- offering
+ * PowerShell 7 on a machine without it would just be a way to fail on open.
+ */
+function TerminalSettings(): React.JSX.Element {
+  const { settings, update } = useSettings()
+  const [shells, setShells] = useState<TerminalShell[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    void window.nsm.terminal
+      .shells()
+      .then((found) => {
+        if (!cancelled) setShells(found)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const missing =
+    settings.terminalShell !== 'auto' &&
+    shells.length > 0 &&
+    !shells.some((s) => s.id === settings.terminalShell)
+
+  return (
+    <>
+      <div className="setting-row column">
+        <span>
+          Shell the terminal opens
+          <span className="hint">
+            New terminals start this shell. Existing ones keep the shell they were opened with,
+            and the + button can always start a different one.
+          </span>
+        </span>
+        <select
+          className="field-input"
+          value={settings.terminalShell}
+          onChange={(e) => update({ terminalShell: e.target.value })}
+        >
+          <option value="auto">
+            Automatic{shells.length > 0 ? ` (${shells[0].label})` : ''}
+          </option>
+          {shells.map((shell) => (
+            <option key={shell.id} value={shell.id} title={shell.file}>
+              {shell.label}
+            </option>
+          ))}
+          {missing && <option value={settings.terminalShell}>{settings.terminalShell} — not found</option>}
+        </select>
+      </div>
+
+      <div className="setting-row column">
+        <span>
+          Terminal text size
+          <span className="hint">Applies to every open terminal as soon as you pick it.</span>
+        </span>
+        <div className="segmented">
+          {TERMINAL_FONT_SIZES.map((size) => (
+            <button
+              key={size}
+              className={settings.terminalFontSize === size ? 'active' : ''}
+              onClick={() => update({ terminalFontSize: size })}
+            >
+              {size}px
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  )
+}
+
 export default function SettingsDialog({
   initialTab = 'appearance',
   onClose
@@ -358,6 +447,9 @@ export default function SettingsDialog({
               ))}
             </div>
           </div>
+
+          <div className="settings-group-label">Terminal</div>
+          <TerminalSettings />
         </div>
       )}
 

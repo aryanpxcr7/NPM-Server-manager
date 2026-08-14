@@ -7,6 +7,40 @@ This project uses [semantic versioning](https://semver.org/).
 
 ---
 
+## Unreleased
+
+### An integrated terminal
+
+**Ctrl+`** opens a terminal inside the app, in the bottom panel. It is a real
+terminal — a Windows pseudoconsole behind xterm.js — not a box that prints command
+output: prompts, colours, arrow keys, tab completion, history, Ctrl+C and progress
+bars all work, because the shell knows it is talking to a terminal.
+
+- **It starts where you are.** Opening it with a project selected starts the shell
+  in that project's folder. *Terminal in this folder* on the project toolbar, and
+  *Terminal here* on a project's right-click menu, always open a fresh one there.
+- **Several at once**, as tabs. The **+** button opens another; the caret beside it
+  picks a different shell. Windows PowerShell, PowerShell 7, Command Prompt and Git
+  Bash are offered when they are installed, and Settings → Behaviour chooses which
+  one new terminals use, along with the text size.
+- **It matches your theme.** All sixteen ANSI colours are derived from the palette,
+  so the terminal changes with the other 24 themes rather than staying on one.
+- **Copy and paste as Windows does it**: Ctrl+C copies when there is a selection
+  and interrupts when there is not, Ctrl+V pastes, and right-click does whichever
+  makes sense. Every other Ctrl key belongs to the shell — Ctrl+L clears its
+  screen, Ctrl+R searches its history — so only Ctrl+` is taken.
+
+### The bottom panel has tabs now
+
+*Logs* and *Terminal*, and it can be **dragged taller or shorter** by its top edge;
+the height is remembered. Ctrl+L still toggles it on the log tab.
+
+Terminals close when the app closes — unlike dev servers, which keep running.
+A shell nobody can type into is not work in progress. Anything you want to survive
+should be started as a server.
+
+---
+
 ## 0.3.6 — 2026-08-14
 
 ### Settings, reachable from the gear beside the app name

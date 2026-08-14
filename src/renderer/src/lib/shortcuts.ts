@@ -13,6 +13,7 @@ export type ShortcutId =
   | 'stop'
   | 'restart'
   | 'open-browser'
+  | 'terminal-panel'
   | 'terminal'
   | 'reveal'
   | 'add-project'
@@ -43,7 +44,8 @@ export const SHORTCUTS: Shortcut[] = [
   { id: 'stop', combo: 'ctrl+shift+s', label: 'Stop the active server', needs: 'a server running' },
   { id: 'restart', combo: 'ctrl+shift+r', label: 'Restart the active server', needs: 'a server running' },
   { id: 'open-browser', combo: 'ctrl+b', label: 'Open the active server in the browser', needs: 'a known port' },
-  { id: 'terminal', combo: 'ctrl+t', label: 'Open a terminal in the project folder', needs: 'a project open' },
+  { id: 'terminal-panel', combo: 'ctrl+`', label: 'Show or hide the integrated terminal' },
+  { id: 'terminal', combo: 'ctrl+t', label: 'Open an external terminal in the project folder', needs: 'a project open' },
   { id: 'reveal', combo: 'ctrl+e', label: 'Show the project folder in Explorer', needs: 'a project open' },
   { id: 'add-project', combo: 'ctrl+o', label: 'Add a project folder' },
   { id: 'toggle-logs', combo: 'ctrl+l', label: 'Show or hide the log panel' },

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FolderOpen, Play, TerminalSquare, Trash2 } from 'lucide-react'
+import { FolderOpen, Play, Terminal, TerminalSquare, Trash2 } from 'lucide-react'
 import { PROJECT_COLORS, type Project, type ProjectColor } from '@shared/types'
 
 export interface MenuTarget {
@@ -12,6 +12,8 @@ export interface MenuTarget {
 interface Props {
   target: MenuTarget
   onClose: () => void
+  /** The app's own terminal, in the bottom dock. */
+  onOpenTerminalPanel: (project: Project) => void
   onOpenTerminal: (project: Project) => void
   onOpenFolder: (project: Project) => void
   onSetColor: (project: Project, color: ProjectColor | null) => void
@@ -34,6 +36,7 @@ const SWATCH: Record<ProjectColor, string> = {
 export default function ProjectContextMenu({
   target,
   onClose,
+  onOpenTerminalPanel,
   onOpenTerminal,
   onOpenFolder,
   onSetColor,
@@ -86,8 +89,11 @@ export default function ProjectContextMenu({
       <button className="context-item" onClick={run(() => onStartServer(project))}>
         <Play size={14} /> Start server
       </button>
+      <button className="context-item" onClick={run(() => onOpenTerminalPanel(project))}>
+        <Terminal size={14} /> Terminal here
+      </button>
       <button className="context-item" onClick={run(() => onOpenTerminal(project))}>
-        <TerminalSquare size={14} /> Open in terminal
+        <TerminalSquare size={14} /> Open in external terminal
       </button>
       <button className="context-item" onClick={run(() => onOpenFolder(project))}>
         <FolderOpen size={14} /> Open folder

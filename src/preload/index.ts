@@ -1,6 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { NsmApi } from '@shared/api'
-import type { IpcResult, ManagedRun, ServerLogLine, UpdateProgress } from '@shared/types'
+import type {
+  IpcResult,
+  ManagedRun,
+  ServerLogLine,
+  TerminalChunk,
+  TerminalSession,
+  UpdateProgress
+} from '@shared/types'
 
 /** Unwraps the main process result envelope, turning failures into rejections. */
 async function call<T>(channel: string, ...args: unknown[]): Promise<T> {
@@ -51,6 +58,32 @@ const api: NsmApi = {
       ipcRenderer.on('servers:run-changed', listener)
       return () => ipcRenderer.off('servers:run-changed', listener)
     }
+  },
+
+  terminal: {
+    shells: () => call('terminal:shells'),
+    list: () => call('terminal:list'),
+    buffer: (id) => call('terminal:buffer', id),
+    create: (options) => call('terminal:create', options),
+    write: (id, data) => call('terminal:write', id, data),
+    resize: (id, cols, rows) => call('terminal:resize', id, cols, rows),
+    close: (id) => call('terminal:close', id),
+
+    onData: (handler) => {
+      const listener = (_e: unknown, chunk: TerminalChunk): void => handler(chunk)
+      ipcRenderer.on('terminal:data', listener)
+      return () => ipcRenderer.off('terminal:data', listener)
+    },
+    onSession: (handler) => {
+      const listener = (_e: unknown, session: TerminalSession): void => handler(session)
+      ipcRenderer.on('terminal:session', listener)
+      return () => ipcRenderer.off('terminal:session', listener)
+    }
+  },
+
+  clipboard: {
+    read: () => call('clipboard:read'),
+    write: (text) => call('clipboard:write', text)
   },
 
   updates: {
