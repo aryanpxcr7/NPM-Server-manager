@@ -7,6 +7,22 @@ This project uses [semantic versioning](https://semver.org/).
 
 ---
 
+## 0.3.4 — 2026-08-14
+
+### Update prompt on launch
+
+The app checks for a new version every time it opens, and now shows a **dialog**
+rather than only a strip along the bottom — with the release notes, *Update now*
+and *Later*. Choosing *Later* leaves the bottom banner in place, so the update is
+still one click away rather than hidden until the next launch.
+
+It also re-checks whenever the window regains focus, at most once every fifteen
+minutes. An app left open for days used to never notice a release.
+
+A retired version cannot dismiss the dialog, matching the banner.
+
+---
+
 ## 0.3.3 — 2026-08-14
 
 ### Older versions are retired

@@ -22,6 +22,7 @@ import ProjectContextMenu, { type MenuTarget } from './components/ProjectContext
 import ProjectView from './components/ProjectView'
 import ServersView from './components/ServersView'
 import UpdateBanner from './components/UpdateBanner'
+import UpdateDialog from './components/UpdateDialog'
 import { ToastProvider, useToast } from './components/Toasts'
 
 /** How often the port table is re-read while the app is focused. */
@@ -47,6 +48,8 @@ function Shell(): React.JSX.Element {
   const [updateDismissed, setUpdateDismissed] = useState(false)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [menu, setMenu] = useState<MenuTarget | null>(null)
+  const [updatePrompted, setUpdatePrompted] = useState(false)
+  const [updateAutoStart, setUpdateAutoStart] = useState(false)
 
   const errorRef = useRef(toast.error)
   errorRef.current = toast.error
@@ -96,15 +99,26 @@ function Shell(): React.JSX.Element {
       )
   }, [loadProjects, scan])
 
-  // Check for a new release shortly after launch, once the window has settled.
+  // Check on every launch, and again when the window regains focus -- a manager
+  // left open for days would otherwise never notice a release.
   useEffect(() => {
-    const timer = window.setTimeout(() => {
+    let last = 0
+    const check = (): void => {
+      // GitHub's unauthenticated limit is 60/hour; once every 15 minutes is ample.
+      if (Date.now() - last < 15 * 60 * 1000) return
+      last = Date.now()
       window.nsm.updates
         .check()
         .then(setUpdate)
         .catch(() => undefined) // a failed check must never disrupt the app
-    }, 2500)
-    return () => window.clearTimeout(timer)
+    }
+
+    const timer = window.setTimeout(check, 1200)
+    window.addEventListener('focus', check)
+    return () => {
+      window.clearTimeout(timer)
+      window.removeEventListener('focus', check)
+    }
   }, [])
 
   // Poll the port table; pause while the window is hidden so a backgrounded app
@@ -454,9 +468,26 @@ Right-click for options`}
         )}
 
         {update?.available && (update.mandatory || !updateDismissed) && (
-          <UpdateBanner info={update} onDismiss={() => setUpdateDismissed(true)} />
+          <UpdateBanner
+            info={update}
+            autoStart={updateAutoStart}
+            onDismiss={() => setUpdateDismissed(true)}
+          />
         )}
       </main>
+
+      {update?.available && !updatePrompted && (
+        <UpdateDialog
+          info={update}
+          onLater={() => setUpdatePrompted(true)}
+          onUpdate={() => {
+            // Hand off to the banner, which owns the download and progress UI.
+            setUpdatePrompted(true)
+            setUpdateDismissed(false)
+            setUpdateAutoStart(true)
+          }}
+        />
+      )}
 
       {menu && (
         <ProjectContextMenu

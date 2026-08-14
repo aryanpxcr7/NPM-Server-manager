@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, ArrowDownCircle, CheckCircle2, ExternalLink, RefreshCw, X } from 'lucide-react'
 import type { UpdateInfo } from '@shared/types'
 
@@ -7,15 +7,26 @@ type Phase = 'idle' | 'downloading' | 'ready' | 'failed'
 interface Props {
   info: UpdateInfo
   onDismiss: () => void
+  /** Begin downloading immediately, e.g. when the launch dialog said "Update now". */
+  autoStart?: boolean
 }
 
-export default function UpdateBanner({ info, onDismiss }: Props): React.JSX.Element {
+export default function UpdateBanner({ info, onDismiss, autoStart }: Props): React.JSX.Element {
   const [phase, setPhase] = useState<Phase>('idle')
   const [progress, setProgress] = useState({ received: 0, total: info.assetSize ?? 0 })
   const [installerPath, setInstallerPath] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => window.nsm.updates.onProgress(setProgress), [])
+
+  const started = useRef(false)
+  useEffect(() => {
+    if (!autoStart || started.current) return
+    started.current = true
+    void startDownload()
+    // startDownload is stable for the life of this banner.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart])
 
   const startDownload = async (): Promise<void> => {
     setPhase('downloading')
