@@ -1,7 +1,7 @@
 # Project status
 
 **Last updated:** 2026-08-14
-**Version:** 0.3.0
+**Version:** 0.3.1
 **Source:** https://github.com/aryanpxcr7/NPM-Server-manager
 **Releases:** https://github.com/aryanpxcr7/NPM-SM-Releases  (installers are published here, not to the source repo)
 
@@ -27,7 +27,11 @@ on quit (reversed `docs/DECISIONS.md` §8; read §10 before touching `servers.ts
 and the app **checks for its own updates** against the releases repo.
 
 Published: **v0.1.0** (history only), **v0.2.0** (defective — see below),
-**v0.3.0** (current).
+**v0.3.0**, **v0.3.1** (current).
+
+**Versioning: step by patch from here** (0.3.2, 0.3.3, …) unless something
+genuinely warrants a minor bump. The 0.1 → 0.2 → 0.3 run was too coarse for
+changes of this size.
 
 > **v0.2.0's installer does not contain the update checker its notes describe.**
 > It was packaged from a stale `out/` after a broken shell chain skipped the build

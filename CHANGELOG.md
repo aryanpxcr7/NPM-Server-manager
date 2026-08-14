@@ -7,6 +7,35 @@ This project uses [semantic versioning](https://semver.org/).
 
 ---
 
+## 0.3.1 — 2026-08-14
+
+### Reattaching to running servers actually works
+
+Closing and reopening the app used to show servers as *external* rather than
+managed. The app recorded **npm's** process id, but npm does not survive the app
+closing — the server it launched does, as a grandchild whose parents are all
+gone. Reattaching by that pid could never have worked.
+
+Runs now record the **ports** they are seen holding, and reattaching looks for a
+runtime still bound to one of them. Adoption is retried across several scans
+rather than discarding the saved index on the first miss.
+
+### A simpler quit prompt
+
+One question instead of four options: stop the servers, or leave them running.
+The minimise-to-tray option and the tray icon are gone.
+
+### Stop and restart from the project page
+
+A running server shows as a chip with its script name, a clickable port link and
+restart/stop buttons. *Start Server* becomes *Start another* while something runs.
+
+### Folder access for external servers
+
+Any server row matched to a project now has a folder button, managed or not.
+
+---
+
 ## 0.3.0 — 2026-08-14
 
 ### No more terminal window
