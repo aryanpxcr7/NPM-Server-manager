@@ -2,10 +2,16 @@
 
 **Last updated:** 2026-08-14
 **Version:** 0.1.0
-**Local HEAD:** `38dcb9d` — "Initial commit: NPM Server Manager"
+**Published at:** https://github.com/aryanpxcr7/NPM-Server-manager
 
 Keep this file current. When you finish a work session, update the date, move
 items between sections, and record anything you verified or discovered.
+
+**Commit and push every time.** Standing instruction from the repo owner — finished
+work should not sit unpushed waiting for confirmation. Git Credential Manager is
+configured and `git push` works non-interactively; the `gh` CLI is *not*
+authenticated, so use plain git. This covers ordinary commits to `main`, not
+force-pushes or history rewrites.
 
 ---
 
