@@ -1,3 +1,4 @@
+import path from 'node:path'
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import type { IpcResult, UpdateMode } from '@shared/types'
 import { getProjectDetail, importProject } from './projects'
@@ -20,6 +21,7 @@ import {
 } from './servers'
 import { getProject, getProjects, removeProject, renameProject } from './store'
 import { resolveToolchain } from './toolchain'
+import { checkForUpdate, downloadUpdate, installUpdate, releasesPage } from './updates'
 
 /** Wraps a handler so the renderer always receives a result object, never a rejection. */
 function handle<A extends unknown[], R>(
@@ -123,6 +125,37 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     clearFinishedRuns()
     return true
   })
+
+  // --- Updates ------------------------------------------------------------
+  handle('updates:check', () => checkForUpdate())
+  handle('updates:releases-page', () => releasesPage())
+
+  handle('updates:download', async (info: unknown) => {
+    const asset = info as { assetUrl?: unknown; assetName?: unknown; assetSize?: unknown }
+    if (typeof asset?.assetUrl !== 'string' || typeof asset?.assetName !== 'string') {
+      throw new Error('This release has no installer attached.')
+    }
+    // Only ever download from the releases host we publish to.
+    const parsed = new URL(asset.assetUrl)
+    if (parsed.protocol !== 'https:' || !/(^|\.)github(usercontent)?\.com$/.test(parsed.hostname)) {
+      throw new Error('Refusing to download from an unexpected host.')
+    }
+
+    return downloadUpdate(
+      {
+        assetUrl: asset.assetUrl,
+        assetName: path.basename(asset.assetName),
+        assetSize: typeof asset.assetSize === 'number' ? asset.assetSize : null
+      },
+      (received, total) => {
+        getWindow()?.webContents.send('updates:progress', { received, total })
+      }
+    )
+  })
+
+  handle('updates:install', (installerPath: unknown) =>
+    installUpdate(requireString(installerPath, 'the installer path'))
+  )
 
   handle('shell:open-external', (url: unknown) => {
     const raw = requireString(url, 'a URL')

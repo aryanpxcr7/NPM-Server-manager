@@ -1,8 +1,9 @@
 # Project status
 
 **Last updated:** 2026-08-14
-**Version:** 0.1.0
-**Published at:** https://github.com/aryanpxcr7/NPM-Server-manager
+**Version:** 0.2.0
+**Source:** https://github.com/aryanpxcr7/NPM-Server-manager
+**Releases:** https://github.com/aryanpxcr7/NPM-SM-Releases  (installers are published here, not to the source repo)
 
 Keep this file current. When you finish a work session, update the date, move
 items between sections, and record anything you verified or discovered.
@@ -21,9 +22,37 @@ The app is feature-complete for the original brief and runs. It builds, typechec
 and packages into a working Windows installer, and is published to the GitHub repo
 above.
 
-Most recent change: dev servers now **outlive the app** rather than being killed on
-quit, and are reattached on next launch. That reversed `docs/DECISIONS.md` §8 and
-required rewriting how servers are spawned — see §10 before touching `servers.ts`.
+Most recent changes: dev servers now **outlive the app** rather than being killed
+on quit (reversed `docs/DECISIONS.md` §8; read §10 before touching `servers.ts`),
+and the app **checks for its own updates** against the releases repo.
+
+Published: **v0.1.0** (history only, no binary) and **v0.2.0** (current).
+
+---
+
+## Releasing
+
+1. Update `CHANGELOG.md` with the new version.
+2. Bump `version` in `package.json`.
+3. `npm run build`, then run `electron-builder --win` with
+   `--config.directories.output=<dir>`.
+4. Create the GitHub release on `aryanpxcr7/NPM-SM-Releases` and attach the
+   `.exe` and its `.blockmap`. Tag as `vX.Y.Z`; the updater strips the leading `v`.
+5. Push the source repo.
+
+**Build output must go outside the project folder.** Something on this machine
+(the `Orca` app, per the Windows Restart Manager) holds a handle on
+`release/win-unpacked/resources/app.asar` and blocks electron-builder from
+cleaning it up. `release*/` is gitignored, so an absolute path into a temp
+directory works fine.
+
+**Tag naming matters.** `updates.ts` reads `tag_name`, strips a leading `v`, and
+compares numerically. A tag that does not parse as `X.Y.Z` is treated as *not
+newer*, so the update silently never offers — do not get creative here.
+
+GitHub rewrites spaces in asset filenames to dots, so the uploaded installer is
+`NPM.Server.Manager-X.Y.Z-Setup.exe`. The updater uses the API's
+`browser_download_url`, so this does not matter, but do not hardcode the name.
 
 ---
 
@@ -44,6 +73,9 @@ Each of these was checked against real data, not assumed:
 | Installer packaging | `release/NPM Server Manager-0.1.0-Setup.exe`, 79 MB (271 MB unpacked) |
 | Servers outlive the app | A real `npm run dev` kept its port bound and kept logging after the manager exited; HTTP still answered |
 | Reattach on next launch | Seeded run record adopted on startup, shown as `reattached`, log history replayed |
+| Update check | Live against the published repo: as 0.1.0 it offers 0.2.0; as 0.2.0 it reports up to date |
+| Update download | Real 78.3 MB installer fetched in 15.5 s, byte size matched the release asset exactly, file verified as a Windows PE binary |
+| Version comparator | 13/13 cases incl. `0.10.0 > 0.9.0`, prerelease ordering, and unparseable input |
 | `LogTailer` | 8/8 assertions against the real module: live appends, partial lines, CRLF, multi-byte split across reads, truncation resync, flush on stop |
 
 ---
@@ -81,9 +113,10 @@ Either honour the field or remove it — the current half-implementation is wors
 than either. This is the most user-visible gap.
 
 ### 2. `electron-updater` is an unused dependency
-Listed in `dependencies` in `package.json`, never imported. Either wire up
-auto-update (needs a publish target in `electron-builder.yml`, currently
-`publish: null`) or drop the dependency.
+Still listed in `dependencies`, still never imported. Update checking was built
+directly on the GitHub API instead -- see `docs/DECISIONS.md` §11 for why. The
+dependency should now simply be **dropped**, unless differential downloads or
+signature verification are wanted later.
 
 ### 3. Dead IPC surface
 Wired end-to-end but never called from the renderer:

@@ -11,8 +11,10 @@ import type {
   Project,
   ProjectDetail,
   ServerLogLine,
+  UpdateInfo,
   UpdateMode,
-  UpdatePlanEntry
+  UpdatePlanEntry,
+  UpdateProgress
 } from './types'
 
 export interface ToolchainInfo {
@@ -58,6 +60,18 @@ export interface NsmApi {
     clearFinished: () => Promise<boolean>
     onLog: (handler: (line: ServerLogLine) => void) => () => void
     onRunChanged: (handler: (run: ManagedRun) => void) => () => void
+  }
+
+  updates: {
+    check: () => Promise<UpdateInfo>
+    releasesPage: () => Promise<string>
+    /** Downloads the installer, resolving to its path on disk. */
+    download: (
+      info: Pick<UpdateInfo, 'assetUrl' | 'assetName' | 'assetSize'>
+    ) => Promise<string>
+    /** Launches the installer and quits the app. */
+    install: (installerPath: string) => Promise<void>
+    onProgress: (handler: (progress: UpdateProgress) => void) => () => void
   }
 
   openExternal: (url: string) => Promise<boolean>

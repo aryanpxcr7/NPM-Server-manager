@@ -12,12 +12,14 @@ import type {
   ManagedRun,
   Project,
   ProjectDetail,
-  ServerLogLine
+  ServerLogLine,
+  UpdateInfo
 } from '@shared/types'
 import type { ToolchainInfo } from '@shared/api'
 import LogPanel from './components/LogPanel'
 import ProjectView from './components/ProjectView'
 import ServersView from './components/ServersView'
+import UpdateBanner from './components/UpdateBanner'
 import { ToastProvider, useToast } from './components/Toasts'
 
 /** How often the port table is re-read while the app is focused. */
@@ -39,6 +41,9 @@ function Shell(): React.JSX.Element {
   const [scanning, setScanning] = useState(false)
   const [toolchain, setToolchain] = useState<ToolchainInfo | null>(null)
   const [toolchainError, setToolchainError] = useState<string | null>(null)
+  const [update, setUpdate] = useState<UpdateInfo | null>(null)
+  const [updateDismissed, setUpdateDismissed] = useState(false)
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
 
   const errorRef = useRef(toast.error)
   errorRef.current = toast.error
@@ -87,6 +92,17 @@ function Shell(): React.JSX.Element {
         setToolchainError(err instanceof Error ? err.message : String(err))
       )
   }, [loadProjects, scan])
+
+  // Check for a new release shortly after launch, once the window has settled.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      window.nsm.updates
+        .check()
+        .then(setUpdate)
+        .catch(() => undefined) // a failed check must never disrupt the app
+    }, 2500)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   // Poll the port table; pause while the window is hidden so a backgrounded app
   // is not shelling out every few seconds for nothing.
@@ -203,6 +219,21 @@ function Shell(): React.JSX.Element {
     }
   }
 
+  const checkForUpdate = async (): Promise<void> => {
+    setCheckingUpdate(true)
+    try {
+      const info = await window.nsm.updates.check()
+      setUpdate(info)
+      setUpdateDismissed(false)
+      if (info.error) toast.error(`Update check failed: ${info.error}`)
+      else if (!info.available) toast.success(`You're on the latest version (${info.currentVersion}).`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setCheckingUpdate(false)
+    }
+  }
+
   const liveRuns = useMemo(
     () => runs.filter((r) => r.status === 'running' || r.status === 'starting'),
     [runs]
@@ -275,6 +306,19 @@ function Shell(): React.JSX.Element {
               {toolchainError ? 'Node not found' : 'detecting node…'}
             </span>
           )}
+        </div>
+
+        <div className="sidebar-footer" style={{ borderTop: 'none', paddingTop: 0 }}>
+          <span>v{update?.currentVersion ?? '—'}</span>
+          <button
+            className="btn-ghost"
+            style={{ padding: '0 4px', fontFamily: 'var(--mono)', fontSize: 11 }}
+            onClick={checkForUpdate}
+            disabled={checkingUpdate}
+            title="Check for updates"
+          >
+            {checkingUpdate ? 'checking…' : 'check for updates'}
+          </button>
         </div>
       </aside>
 
@@ -360,6 +404,10 @@ function Shell(): React.JSX.Element {
           >
             <Terminal size={14} /> Show logs ({liveRuns.length} running)
           </button>
+        )}
+
+        {update?.available && !updateDismissed && (
+          <UpdateBanner info={update} onDismiss={() => setUpdateDismissed(true)} />
         )}
       </main>
     </div>

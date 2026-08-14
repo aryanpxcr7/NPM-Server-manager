@@ -120,3 +120,26 @@ export interface CommandResult {
 }
 
 export type IpcResult<T> = { ok: true; data: T } | { ok: false; error: string }
+
+/** Result of checking the releases repo for a newer build. */
+export interface UpdateInfo {
+  currentVersion: string
+  /** null when no release could be read. */
+  latestVersion: string | null
+  available: boolean
+  /** Release notes, as markdown from the GitHub release body. */
+  notes: string
+  releaseUrl: string
+  /** Direct download for the installer, when the release has one attached. */
+  assetUrl: string | null
+  assetName: string | null
+  assetSize: number | null
+  publishedAt: string | null
+  /** Set when the check failed; the app carries on regardless. */
+  error: string | null
+}
+
+export interface UpdateProgress {
+  received: number
+  total: number
+}

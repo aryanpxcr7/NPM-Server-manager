@@ -238,3 +238,44 @@ yet.
 adopted runs, since it holds no child handle across sessions. Liveness for those
 is polled in `reconcileRuns()`, which piggybacks on the port scanner's existing
 process query.
+
+---
+
+## 11. Releases live in a separate public repo, checked over the plain GitHub API
+
+**Decided:** 2026-08-14.
+
+Installers are published to
+[`aryanpxcr7/NPM-SM-Releases`](https://github.com/aryanpxcr7/NPM-SM-Releases)
+rather than to the source repo, keeping ~80 MB binaries out of the code
+repository's release history.
+
+`main/updates.ts` calls `GET /repos/{repo}/releases/latest` **unauthenticated**.
+That caps at 60 requests/hour/IP, which is ample for one check per launch plus
+occasional manual ones, and means no token ships in the app.
+
+**Why not `electron-updater`**, which is already a dependency? It wants a
+`publish` block pointing at the repo that produced the build, expects a
+`latest.yml` alongside the installer, and pulls in a differential-download and
+signature-verification path that would need its own setup to be trustworthy. A
+single JSON fetch, a version compare and a download is the whole requirement, and
+it is fully testable outside Electron — which is how the version comparator got
+13 test cases and the download got verified end to end.
+
+`electron-updater` remains an unused dependency; see `docs/STATUS.md`. Adopting it
+properly, or dropping it, is still open.
+
+**Safety properties worth preserving:**
+
+- Downloads are restricted to `github.com` / `githubusercontent.com` over HTTPS,
+  checked in `ipc.ts` before anything is fetched.
+- The asset filename is passed through `path.basename()`, so a crafted release
+  cannot write outside the updates folder.
+- Files download to `<name>.part` and are renamed only on completion, so an
+  interrupted download is never mistaken for a finished one.
+- A failed or rate-limited check resolves with an `error` field rather than
+  throwing; the app carries on regardless.
+
+**Version comparison is hand-rolled** (`isNewer`), for the same reason as §5.
+It compares dotted numbers numerically — `0.10.0` beats `0.9.0`, which a string
+compare gets wrong — and ranks a release above its own prerelease.

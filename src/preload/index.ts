@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { NsmApi } from '@shared/api'
-import type { IpcResult, ManagedRun, ServerLogLine } from '@shared/types'
+import type { IpcResult, ManagedRun, ServerLogLine, UpdateProgress } from '@shared/types'
 
 /** Unwraps the main process result envelope, turning failures into rejections. */
 async function call<T>(channel: string, ...args: unknown[]): Promise<T> {
@@ -48,6 +48,18 @@ const api: NsmApi = {
       const listener = (_e: unknown, run: ManagedRun): void => handler(run)
       ipcRenderer.on('servers:run-changed', listener)
       return () => ipcRenderer.off('servers:run-changed', listener)
+    }
+  },
+
+  updates: {
+    check: () => call('updates:check'),
+    releasesPage: () => call('updates:releases-page'),
+    download: (info) => call('updates:download', info),
+    install: (installerPath) => call('updates:install', installerPath),
+    onProgress: (handler) => {
+      const listener = (_e: unknown, progress: UpdateProgress): void => handler(progress)
+      ipcRenderer.on('updates:progress', listener)
+      return () => ipcRenderer.off('updates:progress', listener)
     }
   },
 
