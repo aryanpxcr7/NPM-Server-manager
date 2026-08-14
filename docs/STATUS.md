@@ -26,7 +26,13 @@ Most recent changes: dev servers now **outlive the app** rather than being kille
 on quit (reversed `docs/DECISIONS.md` §8; read §10 before touching `servers.ts`),
 and the app **checks for its own updates** against the releases repo.
 
-Published: **v0.1.0** (history only), **v0.2.0**, **v0.3.0** (current).
+Published: **v0.1.0** (history only), **v0.2.0** (defective — see below),
+**v0.3.0** (current).
+
+> **v0.2.0's installer does not contain the update checker its notes describe.**
+> It was packaged from a stale `out/` after a broken shell chain skipped the build
+> step. The release notes now carry a warning. `npm run dist` gained a
+> `verify-build` guard so this cannot recur — see `docs/DECISIONS.md` §15.
 
 **Repo visibility matters and is easy to get wrong.** The source repo
 `NPM-Server-manager` is **private**; the releases repo `NPM-SM-Releases` must stay
@@ -82,6 +88,7 @@ Each of these was checked against real data, not assumed:
 | Reattach on next launch | Seeded run record adopted on startup, shown as `reattached`, log history replayed |
 | Update check | Live against the published repo: as 0.1.0 it offers 0.2.0; as 0.2.0 it reports up to date |
 | Update download | Real 78.3 MB installer fetched in 15.5 s, byte size matched the release asset exactly, file verified as a Windows PE binary |
+| Stale-build guard | `verify-build` exits 1 when a source file is newer than the bundle, 0 after a rebuild |
 | Updater against a private repo | Reproduced the silent failure, then confirmed anonymous 200 + downloadable asset once public |
 | Version comparator | 13/13 cases incl. `0.10.0 > 0.9.0`, prerelease ordering, and unparseable input |
 | `LogTailer` | 8/8 assertions against the real module: live appends, partial lines, CRLF, multi-byte split across reads, truncation resync, flush on stop |

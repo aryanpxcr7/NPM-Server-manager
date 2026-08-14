@@ -12,8 +12,9 @@
     "icons": "node scripts/make-icons.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "preview": "electron-vite preview",
-    "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder --win"
+    "pack": "npm run build; npm run verify-build && electron-builder --dir",
+    "dist": "npm run build; npm run verify-build && electron-builder --win",
+    "verify-build": "node scripts/verify-build.mjs"
   },
   "dependencies": {
     "electron-updater": "^6.3.9"

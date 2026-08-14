@@ -367,3 +367,44 @@ a repo that cannot be read is our problem and permanent.
 
 `NPM-SM-Releases` must remain **public** for this reason. The source repo is
 private and can stay that way.
+
+---
+
+## 15. Packaging verifies that `out/` is not stale
+
+**Decided:** 2026-08-14, after shipping a release without its headline feature.
+
+`npm run dist` runs `build`, then `verify-build`, then `electron-builder` — and
+the first separator is a **semicolon, not `&&`**:
+
+```
+"dist": "npm run build; npm run verify-build && electron-builder --win"
+```
+
+`scripts/verify-build.mjs` fails if any file in `src/` is newer than the oldest
+file in `out/`, or if the expected entry points are missing.
+
+**What went wrong.** v0.2.0 was published with release notes describing in-app
+update checking. The installer did not contain it. The build command was:
+
+```
+rm -rf release-new && npm run build && electron-builder ...
+```
+
+The `rm` failed on a locked file (another app held a handle on the previous
+`app.asar`), `&&` short-circuited past **both** the build and the packaging, and a
+later bare `electron-builder` invocation packaged the stale `out/` under the
+already-bumped version number. Every step "succeeded"; the binary was simply from
+before the feature existed.
+
+**Two lessons, both encoded above:**
+
+1. A cleanup step failing must never silently skip the build. Chain cleanup with
+   `;`, and only chain *verification* with `&&`.
+2. A version number is a claim about contents, and nothing was checking it. The
+   mtime comparison is crude but it catches the whole class of "packaged the wrong
+   thing" without needing a list of expected features to maintain.
+
+A packaged asar can also be checked directly — it is a plain file, so
+`fs.readFileSync(asar).includes(Buffer.from('some-marker'))` is enough to confirm
+a feature made it in. That is what diagnosed this.
