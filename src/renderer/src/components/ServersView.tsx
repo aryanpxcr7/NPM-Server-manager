@@ -110,14 +110,7 @@ function ServerGroup({
         <span className="sub">{subtitle}</span>
       </div>
       {servers.map((server) => {
-        const run = server.managed
-          ? runs.find(
-              (r) =>
-                r.projectId === server.projectId &&
-                r.script === server.script &&
-                (r.status === 'running' || r.status === 'starting')
-            )
-          : undefined
+        const run = server.runId ? runs.find((r) => r.runId === server.runId) : undefined
 
         return (
           <div className="server-row" key={`${server.pid}-${server.ports.join(',')}`}>
@@ -143,6 +136,11 @@ function ServerGroup({
                 <span className={`tag ${server.managed ? 'tag-managed' : 'tag-external'}`}>
                   {server.managed ? 'managed' : 'external'}
                 </span>
+                {run?.adopted && (
+                  <span className="tag" title="Left running by a previous session">
+                    reattached
+                  </span>
+                )}
                 {server.ports.length > 1 && (
                   <span className="tag">+{server.ports.length - 1} more ports</span>
                 )}

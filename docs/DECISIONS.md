@@ -148,16 +148,33 @@ process still has it. `servers.log(runId)` exists to fix this but is not yet cal
 
 ---
 
-## 8. Quitting the app stops every server it started
+## 8. Quitting the app leaves its servers running
 
-**Decided:** 2026-08-14.
+**Decided:** 2026-08-14. **Reversed the same day** — see below.
 
-`before-quit` is intercepted, `stopAll()` kills every live run's process tree, and
-only then does the app quit.
+Closing the manager does not stop the dev servers it started. On quit the app
+stops tailing their logs, writes out the run index, and exits. On next launch the
+first port scan validates those records against live processes and reattaches, so
+a surviving server reappears in the UI marked `reattached`, with its log history
+replayed and streaming again.
 
-An app whose purpose is cleaning up stray dev servers must not leave its own
-processes bound to ports on exit. Servers *not* started by the app are left alone —
-the user started those deliberately somewhere else.
+**Originally decided the opposite:** that an app for cleaning up stray dev servers
+should not leave its own processes behind, so `before-quit` killed every run.
+
+That was wrong for how the tool is actually used. Closing a manager window is not
+a statement about the work in progress behind it, and a dev server that dies
+because you closed an unrelated window is a hostile surprise. Stopping a server is
+already an explicit action with a button.
+
+**This reversal is not a one-line change**, and the reason is worth keeping:
+a child spawned with piped stdio **dies when the app exits anyway**, because its
+next write hits a broken pipe. Measured — an attached child stopped 4 ticks after
+the parent exited; detached-with-pipes survived only ~600 ms longer. Simply
+deleting the quit handler would have produced servers that die unpredictably a
+moment after close, which is worse than killing them deliberately. Survival
+required the spawn changes in §10.
+
+Servers *not* started by the app were never touched on quit and still are not.
 
 ---
 
@@ -171,3 +188,53 @@ renamed aside rather than blocking startup.
 
 The stored data is one small array. `electron-store` would add a dependency and ESM
 interop friction for schema validation and migrations that are not needed yet.
+
+---
+
+## 10. Dev servers are spawned detached, with logs written to a file
+
+**Decided:** 2026-08-14, to make §8 actually work.
+
+```ts
+spawn(nodeExe, [npmCli, 'run', script], {
+  detached: true,                 // required, see below
+  stdio: ['ignore', fd, fd]       // fd is an append handle on a log file
+})
+child.unref()
+```
+
+Both halves are load-bearing. Measured on Windows 11 / Node 24, child still
+ticking 4 s after the parent exited:
+
+| stdio | detached | Survives parent exit |
+| --- | --- | --- |
+| pipe | no | **no** — dies on broken pipe |
+| pipe | yes | **no** — outlived parent by ~600 ms, then died |
+| file | no | **no** — killed with the parent |
+| file | yes | **yes** |
+| ignore | yes | yes, but no logs |
+
+The pipe results are the counter-intuitive part: `detached: true` alone is not
+enough, because the child still dies the moment it writes to a pipe whose read end
+went away with the app. And file-backed stdio alone is not enough either, because
+Windows tears down non-detached children with their parent regardless of stdio.
+
+Live output therefore comes from **tailing the log file** (`main/logtail.ts`),
+polled rather than `fs.watch`-ed, because `fs.watch` on Windows does not fire
+reliably for appends to an already-open file. The tailer handles partial lines,
+CRLF, multi-byte characters split across reads, and truncation.
+
+**Accepted cost:** stdout and stderr share one file, so their interleaving is
+preserved but the stream distinction is lost. Error lines are recognised by shape
+instead, which only affects colouring. Separate files would recover the
+distinction but scramble the ordering, which is the more useful property in a
+server log.
+
+A wrapper process that tags each line with its stream would give both, at the cost
+of a script that has to be unpacked from the asar to be spawnable. Not worth it
+yet.
+
+**Consequence to be aware of:** the app no longer receives an `exit` event for
+adopted runs, since it holds no child handle across sessions. Liveness for those
+is polled in `reconcileRuns()`, which piggybacks on the port scanner's existing
+process query.

@@ -53,6 +53,11 @@ export default function LogPanel({
             <span className={`status-dot ${run.status}`} />
             {run.projectName}
             <span style={{ color: 'var(--text-faint)' }}>:{run.script}</span>
+            {run.adopted && (
+              <span className="tag" title="Left running by a previous session">
+                reattached
+              </span>
+            )}
             {run.ports.length > 0 && (
               <span style={{ color: 'var(--accent)', fontFamily: 'var(--mono)', fontSize: 11 }}>
                 {run.ports[0]}

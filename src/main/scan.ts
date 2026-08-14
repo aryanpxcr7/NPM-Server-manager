@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { DetectedServer } from '@shared/types'
 import { getProjects, normalizePath } from './store'
-import { getRunForPid, listRuns } from './servers'
+import { getRunForPid, listRuns, reconcileRuns } from './servers'
 
 const execFileAsync = promisify(execFile)
 
@@ -44,6 +44,10 @@ export async function scanServers(): Promise<DetectedServer[]> {
   const byPid = new Map<number, ProcessInfo>()
   for (const proc of processes) byPid.set(proc.pid, proc)
 
+  // Adopt servers left running by a previous session and retire dead ones. This
+  // reuses the process table we just paid for.
+  reconcileRuns(byPid)
+
   const portsByPid = new Map<number, Set<number>>()
   for (const entry of listening) {
     let set = portsByPid.get(entry.pid)
@@ -69,9 +73,9 @@ export async function scanServers(): Promise<DetectedServer[]> {
     if (!isManaged && !INTERESTING.has(proc.name.toLowerCase())) continue
 
     const cwd = proc.commandLine ? guessCwd(proc.commandLine) : null
-    const match = run
-      ? projects.find((p) => p.id === run.projectId)
-      : matchProject(proc.commandLine, cwd, projects)
+    // A run already knows its project; re-deriving it would lose the name if the
+    // project were removed while its server kept running.
+    const match = run ? null : matchProject(proc.commandLine, cwd, projects)
 
     servers.push({
       pid,
@@ -79,9 +83,10 @@ export async function scanServers(): Promise<DetectedServer[]> {
       ports: [...ports].sort((a, b) => a - b),
       commandLine: proc.commandLine,
       cwd,
-      projectId: match?.id ?? null,
-      projectName: match?.name ?? null,
+      projectId: run?.projectId ?? match?.id ?? null,
+      projectName: run?.projectName ?? match?.name ?? null,
       managed: isManaged,
+      runId: run?.runId ?? null,
       script: run?.script ?? null,
       startedAt: run?.startedAt ?? null
     })
@@ -89,10 +94,13 @@ export async function scanServers(): Promise<DetectedServer[]> {
 
   // Managed runs that have not bound a port yet still belong in the list, so a
   // just-started dev server shows up immediately instead of after it boots.
+  // Runs already represented above are skipped -- npm binds no port itself, so
+  // its listening child stands in for the whole run.
+  const shown = new Set(servers.map((s) => s.runId).filter((id): id is string => id !== null))
   for (const run of listRuns()) {
     if (run.status !== 'running' && run.status !== 'starting') continue
+    if (shown.has(run.runId)) continue
     if (run.pid !== null && portsByPid.has(run.pid)) continue
-    if (servers.some((s) => s.projectId === run.projectId && s.script === run.script)) continue
     servers.push({
       pid: run.pid ?? -1,
       processName: 'node.exe',
@@ -102,6 +110,7 @@ export async function scanServers(): Promise<DetectedServer[]> {
       projectId: run.projectId,
       projectName: run.projectName,
       managed: true,
+      runId: run.runId,
       script: run.script,
       startedAt: run.startedAt
     })

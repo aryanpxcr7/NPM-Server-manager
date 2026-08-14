@@ -71,6 +71,8 @@ export interface DetectedServer {
   projectName: string | null
   /** True when this app spawned it and still owns the handle. */
   managed: boolean
+  /** Identifies the owning run, so the UI can act on it without re-deriving. */
+  runId: string | null
   /** Script name for managed servers, e.g. "dev". */
   script: string | null
   startedAt: number | null
@@ -98,6 +100,8 @@ export interface ManagedRun {
   endedAt: number | null
   /** Ports observed for this run's process tree, filled in by the scanner. */
   ports: number[]
+  /** True when a previous app session started this and it outlived that session. */
+  adopted: boolean
 }
 
 export interface UpdatePlanEntry {

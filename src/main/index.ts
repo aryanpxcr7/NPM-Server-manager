@@ -1,7 +1,7 @@
 import { app, BrowserWindow, shell } from 'electron'
 import path from 'node:path'
 import { registerIpc } from './ipc'
-import { stopAll } from './servers'
+import { detachAll, initServers } from './servers'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -54,6 +54,9 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   app.whenReady().then(() => {
+    // Load the record of servers left running by a previous session; the first
+    // port scan validates them against live processes and reattaches.
+    initServers()
     registerIpc(() => mainWindow)
     createWindow()
 
@@ -66,13 +69,11 @@ if (!app.requestSingleInstanceLock()) {
     app.quit()
   })
 
-  // Dev servers we started are our responsibility; leaving them bound to ports
-  // after the app closes is exactly the mess this tool exists to clean up.
-  let cleanedUp = false
-  app.on('before-quit', (event) => {
-    if (cleanedUp) return
-    event.preventDefault()
-    cleanedUp = true
-    stopAll().finally(() => app.quit())
+  // Dev servers deliberately outlive the app: closing the manager should not
+  // interrupt work in progress. Runs are spawned detached with file-backed logs
+  // so they survive, and the run index is written out so the next launch can
+  // reattach to them. See docs/DECISIONS.md §8.
+  app.on('before-quit', () => {
+    detachAll()
   })
 }

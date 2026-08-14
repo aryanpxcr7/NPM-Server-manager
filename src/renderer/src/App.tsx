@@ -167,13 +167,9 @@ function Shell(): React.JSX.Element {
 
   const stopServer = async (server: DetectedServer): Promise<void> => {
     try {
-      const run = runs.find(
-        (r) =>
-          r.projectId === server.projectId &&
-          r.script === server.script &&
-          (r.status === 'running' || r.status === 'starting')
-      )
-      if (run) await window.nsm.servers.stop(run.runId)
+      // Stopping through the run kills npm's whole tree; a bare pid is the
+      // fallback for servers this app never started.
+      if (server.runId) await window.nsm.servers.stop(server.runId)
       else await window.nsm.servers.kill(server.pid)
       toast.success(
         server.ports.length > 0 ? `Stopped process on port ${server.ports[0]}.` : 'Process stopped.'

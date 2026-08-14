@@ -18,14 +18,12 @@ force-pushes or history rewrites.
 ## Where things stand
 
 The app is feature-complete for the original brief and runs. It builds, typechecks
-and packages into a working Windows installer.
+and packages into a working Windows installer, and is published to the GitHub repo
+above.
 
-**Not yet pushed to GitHub.** The remote is configured
-(`https://github.com/aryanpxcr7/NPM-Server-manager.git`) and the repo is empty, but
-`gh` is not authenticated in this environment. A push was deliberately not
-attempted to avoid triggering a blocking credential prompt.
-
-To push: the user runs `gh auth login`, then `git push -u origin main`.
+Most recent change: dev servers now **outlive the app** rather than being killed on
+quit, and are reattached on next launch. That reversed `docs/DECISIONS.md` §8 and
+required rewriting how servers are spawned — see §10 before touching `servers.ts`.
 
 ---
 
@@ -44,6 +42,9 @@ Each of these was checked against real data, not assumed:
 | Start Server → live logs | `next dev --turbopack` started, output streamed into the log panel |
 | Severity colouring | `@types/node` 20.19→26.2 red *Major*; `@base-ui/react` 1.6→1.7 amber *Minor*; wanted vs latest correctly distinguished for `next` |
 | Installer packaging | `release/NPM Server Manager-0.1.0-Setup.exe`, 79 MB (271 MB unpacked) |
+| Servers outlive the app | A real `npm run dev` kept its port bound and kept logging after the manager exited; HTTP still answered |
+| Reattach on next launch | Seeded run record adopted on startup, shown as `reattached`, log history replayed |
+| `LogTailer` | 8/8 assertions against the real module: live appends, partial lines, CRLF, multi-byte split across reads, truncation resync, flush on stop |
 
 ---
 
@@ -119,6 +120,25 @@ Not promised to anyone; think before building.
 
 ---
 
+## Behaviour worth knowing
+
+**Closing the app does not stop its dev servers** (changed 2026-08-14 at the owner's
+request; see `docs/DECISIONS.md` §8 and §10). They keep running and are reattached
+on next launch. Consequences:
+
+- A server can outlive several app sessions. `runs.json` in `userData` is the index
+  used to find them again; `userData/logs/<runId>.log` holds their output.
+- Log files are never pruned. A long-lived chatty server will grow one
+  indefinitely. Worth adding a size cap or a cleanup of logs for finished runs.
+- Adoption guards against PID reuse by requiring the process to still be node/bun/deno
+  running `npm-cli.js` with the same script. A process that fails the check is
+  simply not adopted; it will still appear as an *external* server.
+- If npm exits but its child keeps the port, the run retires while the port stays
+  bound. The scanner then shows it as external, which is stoppable but not
+  restartable.
+
+---
+
 ## Bugs found and fixed
 
 **Path regex broke on spaces** (fixed 2026-08-14, in the initial commit).
@@ -130,3 +150,14 @@ the interpreter's own path in argv[0].
 
 Regression guard: a dev server running from a spaced project path must still match
 its project. There is no automated test for this yet — see gap #6.
+
+**Duplicate rows for one server** (fixed 2026-08-14). The scanner listed both npm
+and its port-holding child as separate servers, because the "run with no port yet"
+fallback deduplicated on `projectId + script` rather than on the run itself.
+`DetectedServer` now carries `runId`, dedupe keys on it, and the UI uses it to act
+on a run directly instead of searching for a match.
+
+**Project name lost for a running server** (fixed 2026-08-14). The scanner re-looked
+up the project record for a run that already knew its own project, so a server
+whose project had been removed showed as `node.exe` and triggered a spurious
+"Project not found". It now trusts the run's own `projectId`/`projectName`.
