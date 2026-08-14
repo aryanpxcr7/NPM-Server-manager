@@ -1,7 +1,7 @@
 # Project status
 
 **Last updated:** 2026-08-14
-**Version:** 0.3.6 (in package.json; **not published** — 0.3.5 is the newest release)
+**Version:** 0.3.6
 **Source:** https://github.com/aryanpxcr7/NPM-Server-manager
 **Releases:** https://github.com/aryanpxcr7/NPM-SM-Releases  (installers are published here, not to the source repo)
 
@@ -26,12 +26,13 @@ Most recent changes: dev servers now **outlive the app** rather than being kille
 on quit (reversed `docs/DECISIONS.md` §8; read §10 before touching `servers.ts`),
 and the app **checks for its own updates** against the releases repo.
 
-Unreleased in the working tree (0.3.6): **open in browser when ready** on the Start
-Server dialog, **Ctrl+click links** in the log panel, a **settings dialog**
-(themes, behaviour, shortcut reference) and **keyboard shortcuts**.
+0.3.6 added the **settings dialog** (25 themes, behaviour, rebindable shortcuts),
+**keyboard shortcuts**, **open in browser when ready** on the Start Server dialog,
+and **Ctrl+click links** in the log panel.
 
 Published: **v0.1.0** (history only), **v0.2.0** (defective — see below),
-**v0.3.0**, **v0.3.1**, **v0.3.2**, **v0.3.3**, **v0.3.4**, **v0.3.5** (current).
+**v0.3.0**, **v0.3.1**, **v0.3.2**, **v0.3.3**, **v0.3.4**, **v0.3.5**,
+**v0.3.6** (current).
 
 **Releases before 0.3.2 are retired** — installers deleted, notes annotated, and
 `update-policy.json` sets a minimum supported version of 0.3.2 so those builds get
@@ -109,6 +110,7 @@ Each of these was checked against real data, not assumed:
 | Reset is scoped to its tab | Same harness: pick Gruvbox Dark → rebind a shortcut → reset from the Shortcuts tab. Bindings clear, the theme is untouched (both stored and live), and the button disables itself. From Appearance the same button reads *Reset theme* and resets only that |
 | Shortcut binding logic | 30/30 assertions against the real `lib/shortcuts.ts` and `lib/settings.ts` (esbuild → node, with a localStorage stub): combo validation, override resolution, the combo→id lookup, key-chip labels, round-tripping through storage, and coercion of stored bindings that are invalid, duplicated, unknown, or for a shortcut that has since become fixed |
 | Theme palettes | `npm run check:themes` measures all 25 against the pairs the UI actually renders (body/dim/faint text on the background, button label on the accent, accent on the background) and the dark/light flag against the background's luminance: 25/25 pass. Ayu Light needed its accent darkened — the published `#fa8d3e` is 2.3:1 on its own background |
+| The 0.3.6 release itself | Anonymous check of what a user's app sees: `releases/latest` returns tag `v0.3.6`, not a draft, with all four assets. The installer downloaded anonymously is 82,130,032 bytes, starts `MZ`, and its SHA-256 matches the published `SHA256SUMS.txt`. Before upload, the packaged `app.asar` was grepped for markers of all four of the day's changes, so it cannot be a stale bundle like v0.2.0 |
 | Log link parser | 13/13 cases through the real `lib/links.ts` (esbuild → node): Vite/Next banners, bare `localhost:8080`, trailing `.` and `)`, ANSI-wrapped URLs, `0.0.0.0` → `localhost`, `[::1]`, two URLs on one line, and non-loopback links correctly *not* auto-opened |
 
 ---
