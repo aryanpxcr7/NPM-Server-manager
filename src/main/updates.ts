@@ -1,7 +1,8 @@
-import { createWriteStream } from 'node:fs'
-import { mkdir, rm, stat } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
+import { createReadStream, createWriteStream } from 'node:fs'
+import { mkdir, readFile, rename, rm, stat } from 'node:fs/promises'
 import path from 'node:path'
-import { Readable } from 'node:stream'
+import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { app, shell } from 'electron'
 import type { UpdateInfo } from '@shared/types'
@@ -162,16 +163,16 @@ export async function downloadUpdate(
   await mkdir(dir, { recursive: true })
   const target = path.join(dir, info.assetName)
 
-  // A completed download from a previous attempt can be reused.
+
+  // A previous download is only reused if it still verifies. Size alone is not
+  // sufficient -- the duplicated-chunk bug produced a correctly sized, corrupt file.
   try {
-    const existing = await stat(target)
-    if (info.assetSize && existing.size === info.assetSize) {
-      onProgress(existing.size, info.assetSize)
-      return target
-    }
-    await rm(target, { force: true })
+    await stat(target)
+    await verifyDownload(target, info, info.assetSize ?? 0)
+    onProgress(info.assetSize ?? 0, info.assetSize ?? 0)
+    return target
   } catch {
-    /* not downloaded yet */
+    await rm(target, { force: true }).catch(() => undefined)
   }
 
   const response = await fetch(info.assetUrl, {
@@ -186,19 +187,100 @@ export async function downloadUpdate(
   let received = 0
 
   const source = Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0])
-  source.on('data', (chunk: Buffer) => {
-    received += chunk.length
-    onProgress(received, total)
+
+  // Progress is counted by a pass-through in the pipeline, NOT by a 'data'
+  // listener on the source. Attaching 'data' before pipeline consumes the stream
+  // puts it in flowing mode early and chunks get re-delivered from the internal
+  // buffer -- which silently duplicated a 16 KB block and produced an installer
+  // of exactly the right size whose contents were wrong. See DECISIONS.md §16.
+  const counter = new Transform({
+    transform(chunk: Buffer, _enc, callback) {
+      received += chunk.length
+      onProgress(received, total)
+      callback(null, chunk)
+    }
   })
 
   const partial = `${target}.part`
-  await pipeline(source, createWriteStream(partial))
+  await pipeline(source, counter, createWriteStream(partial))
 
-  // Rename only once the whole file is on disk, so a cancelled download is never
-  // mistaken for a complete one.
-  const { rename } = await import('node:fs/promises')
+  await verifyDownload(partial, info, total)
+
+  // Rename only once the file is verified, so a bad download is never mistaken
+  // for a usable one.
   await rename(partial, target)
   return target
+}
+
+/**
+ * Refuses to hand back an installer that is not byte-for-byte what was published.
+ *
+ * A size check alone is not enough: the duplicated-chunk bug produced a file of
+ * exactly the expected length. When the release publishes SHA256SUMS.txt the hash
+ * is authoritative; otherwise the structural checks still catch truncation and
+ * error pages served in place of a binary.
+ */
+async function verifyDownload(
+  file: string,
+  info: Pick<UpdateInfo, 'assetUrl' | 'assetName'>,
+  expectedSize: number
+): Promise<void> {
+  const { size } = await stat(file)
+  if (expectedSize && size !== expectedSize) {
+    await rm(file, { force: true })
+    throw new Error(
+      `Download is incomplete (${size} of ${expectedSize} bytes). Please try again.`
+    )
+  }
+
+  const head = await readFile(file, { encoding: null }).then((b) => b.subarray(0, 2).toString('latin1'))
+  if (head !== 'MZ') {
+    await rm(file, { force: true })
+    throw new Error('Downloaded file is not a Windows installer. Please try again.')
+  }
+
+  const expected = await publishedChecksum(info.assetName ?? '')
+  if (!expected) return // release predates checksum publishing
+
+  const actual = await sha256(file)
+  if (actual !== expected) {
+    await rm(file, { force: true })
+    throw new Error('Downloaded installer failed its integrity check. Please try again.')
+  }
+}
+
+async function sha256(file: string): Promise<string> {
+  const hash = createHash('sha256')
+  await pipeline(createReadStream(file), hash)
+  return hash.digest('hex')
+}
+
+/** Reads SHA256SUMS.txt from the release, when one is attached. */
+async function publishedChecksum(assetName: string): Promise<string | null> {
+  if (!assetName) return null
+  try {
+    const res = await fetch(LATEST_URL, {
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(15_000)
+    })
+    if (!res.ok) return null
+    const release = (await res.json()) as GhRelease
+    const sums = release.assets.find((a) => /^SHA256SUMS\.txt$/i.test(a.name))
+    if (!sums) return null
+
+    const body = await fetch(sums.browser_download_url, {
+      headers: { 'User-Agent': USER_AGENT }
+    }).then((r) => (r.ok ? r.text() : ''))
+
+    for (const line of body.split(/\r?\n/)) {
+      // Format: "<hex>  <filename>"
+      const match = line.trim().match(/^([a-f0-9]{64})\s+\*?(.+)$/i)
+      if (match && match[2].trim() === assetName) return match[1].toLowerCase()
+    }
+    return null
+  } catch {
+    return null
+  }
 }
 
 /**

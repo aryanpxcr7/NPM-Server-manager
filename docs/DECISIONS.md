@@ -408,3 +408,43 @@ before the feature existed.
 A packaged asar can also be checked directly — it is a plain file, so
 `fs.readFileSync(asar).includes(Buffer.from('some-marker'))` is enough to confirm
 a feature made it in. That is what diagnosed this.
+
+---
+
+## 16. Never attach a `'data'` listener to a stream you are about to pipe
+
+**Decided:** 2026-08-14, after shipping a corrupt installer.
+
+`downloadUpdate()` reported progress like this:
+
+```ts
+const source = Readable.fromWeb(response.body)
+source.on('data', (c) => onProgress(received += c.length, total))  // WRONG
+await pipeline(source, createWriteStream(partial))
+```
+
+Attaching `'data'` switches a stream into flowing mode immediately. `pipeline`
+then attaches its own consumer, and chunks already buffered can be re-delivered.
+The result was an installer of **exactly the right size** with a 16 KB chunk
+duplicated and everything after it shifted — 4.67% of the file wrong. NSIS
+rejected it with "Installer integrity check has failed", which reads like a
+network problem and is not.
+
+Progress is now counted by a `Transform` inside the pipeline:
+
+```ts
+const counter = new Transform({
+  transform(chunk, _enc, cb) { onProgress(received += chunk.length, total); cb(null, chunk) }
+})
+await pipeline(source, counter, createWriteStream(partial))
+```
+
+**The wider lesson: size is not integrity.** The corrupt file passed every check
+in place at the time. Downloads are now verified on size, Windows executable
+header, and SHA-256 against a `SHA256SUMS.txt` asset published with each release.
+A file failing any check is deleted rather than launched, and the cached-download
+reuse path runs the same verification — it previously accepted any file of the
+right length.
+
+Publishing `SHA256SUMS.txt` is therefore **part of the release procedure**, not
+optional. A release without it degrades to the structural checks only.

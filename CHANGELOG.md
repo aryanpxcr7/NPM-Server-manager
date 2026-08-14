@@ -7,6 +7,33 @@ This project uses [semantic versioning](https://semver.org/).
 
 ---
 
+## 0.3.2 — 2026-08-14
+
+### Fixed: in-app update produced a corrupt installer
+
+Updating from inside the app failed with *"Installer integrity check has failed"*.
+
+The downloaded file was exactly the right size but 4.67% of its bytes were wrong:
+a 16 KB chunk was duplicated, shifting everything after it. The cause was the
+progress counter — a `'data'` listener attached to the response stream before the
+pipeline consumed it, which puts the stream into flowing mode early and lets
+chunks be re-delivered from the internal buffer.
+
+Progress is now counted by a pass-through inside the pipeline, which cannot
+reorder or duplicate anything.
+
+Downloads are also **verified before use**: size, Windows executable header, and —
+from this release on — a SHA-256 hash against a `SHA256SUMS.txt` published with
+each release. A file that fails any check is deleted rather than launched. The
+same verification is applied to a cached download, since a size check alone would
+have accepted the corrupt file.
+
+> **This fix cannot repair itself.** Version 0.3.1 and earlier download with the
+> broken code, so update to 0.3.2 by downloading the installer manually. From
+> 0.3.2 onward, in-app updates verify themselves.
+
+---
+
 ## 0.3.1 — 2026-08-14
 
 ### Reattaching to running servers actually works
