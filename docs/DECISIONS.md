@@ -635,3 +635,21 @@ three were gone afterwards — so there is no orphaned npm left behind. The new 
 then waits for the old pid to actually disappear before starting, because
 otherwise the replacement races the old process for the port and dies on
 `EADDRINUSE` in a way that looks like the app's fault.
+
+---
+
+## 21. External shell choice is explicit, and the integrated picker escapes the tab scroller
+
+**Decided:** 2026-08-14.
+
+The project actions that open a terminal outside the app offer **Command Prompt**
+and **PowerShell** at the moment of opening. The choice is passed as a small
+validated enum through the shared API and IPC layer, and the main process resolves
+the executable before starting it in the project's folder. This keeps the action
+clear without making the integrated terminal's persistent shell preference control
+a separate console window.
+
+The integrated terminal still supports several sessions and shell choices from its
+caret menu. Its tab labels remain horizontally scrollable, but the shell menu is
+rendered outside that scrolling box and above the terminal canvas; otherwise the
+tab strip's overflow clipping makes a correctly mounted menu appear not to open.

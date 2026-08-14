@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
-import type { IpcResult, ProjectColor, UpdateMode } from '@shared/types'
+import type { ExternalTerminalShell, IpcResult, ProjectColor, UpdateMode } from '@shared/types'
 import { PROJECT_COLORS } from '@shared/types'
 import { getProjectDetail, importProject, openTerminal } from './projects'
 import {
@@ -121,10 +121,13 @@ export function registerIpc(
     return setProjectColor(requireString(id, 'a project id'), color as ProjectColor | null)
   })
 
-  handle('projects:open-terminal', (id: unknown) => {
+  handle('projects:open-terminal', (id: unknown, shell: unknown) => {
     const project = getProject(requireString(id, 'a project id'))
     if (!project) throw new Error('Project not found.')
-    return openTerminal(project.path)
+    if (shell !== 'cmd' && shell !== 'powershell') {
+      throw new Error('Choose Command Prompt or PowerShell.')
+    }
+    return openTerminal(project.path, shell as ExternalTerminalShell)
   })
 
   handle('projects:reveal', (id: unknown) => {

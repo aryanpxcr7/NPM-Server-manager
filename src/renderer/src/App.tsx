@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import type {
   DetectedServer,
+  ExternalTerminalShell,
   ManagedRun,
   Project,
   ProjectColor,
@@ -28,6 +29,7 @@ import ServersView from './components/ServersView'
 import SettingsDialog from './components/SettingsDialog'
 import { SettingsProvider, useSettings } from './components/SettingsProvider'
 import TerminalPanel from './components/TerminalPanel'
+import ExternalTerminalDialog from './components/ExternalTerminalDialog'
 import UpdateBanner from './components/UpdateBanner'
 import UpdateDialog from './components/UpdateDialog'
 import { ToastProvider, useToast } from './components/Toasts'
@@ -70,6 +72,7 @@ function Shell(): React.JSX.Element {
   const [updateDismissed, setUpdateDismissed] = useState(false)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [menu, setMenu] = useState<MenuTarget | null>(null)
+  const [externalTerminalProject, setExternalTerminalProject] = useState<Project | null>(null)
   const [updatePrompted, setUpdatePrompted] = useState(false)
   const [updateAutoStart, setUpdateAutoStart] = useState(false)
   const [quitPrompt, setQuitPrompt] = useState<{ liveRuns: number } | null>(null)
@@ -385,9 +388,16 @@ function Shell(): React.JSX.Element {
     }
   }
 
-  const openTerminal = async (project: Project): Promise<void> => {
+  const requestExternalTerminal = (project: Project): void => {
+    setExternalTerminalProject(project)
+  }
+
+  const openTerminal = async (shell: ExternalTerminalShell): Promise<void> => {
+    const project = externalTerminalProject
+    setExternalTerminalProject(null)
+    if (!project) return
     try {
-      await window.nsm.projects.openTerminal(project.id)
+      await window.nsm.projects.openTerminal(project.id, shell)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err))
     }
@@ -575,11 +585,11 @@ function Shell(): React.JSX.Element {
           projectId ? setStartPickerOpen(true) : toast.info('Open a project first.')
         )
       case 'terminal':
-        return act(() =>
-          projectId
-            ? void window.nsm.projects.openTerminal(projectId)
-            : toast.info('Open a project first.')
-        )
+        return act(() => {
+          const project = projectId ? projects.find((item) => item.id === projectId) : null
+          if (project) requestExternalTerminal(project)
+          else toast.info('Open a project first.')
+        })
       case 'reveal':
         return act(() =>
           projectId
@@ -762,6 +772,7 @@ Right-click for options`}
             onRemove={removeProject}
             onRefreshDetail={() => void loadDetail(view.id)}
             onOpenTerminalPanel={openTerminalHere}
+            onOpenExternalTerminal={() => requestExternalTerminal(detail.project)}
             onStopExternal={stopServer}
             onRestartExternal={restartExternal}
           />
@@ -913,11 +924,19 @@ Right-click for options`}
             setView({ kind: 'project', id: project.id })
             openTerminalHere()
           }}
-          onOpenTerminal={openTerminal}
+          onOpenTerminal={requestExternalTerminal}
           onOpenFolder={(project) => void window.nsm.projects.reveal(project.id)}
           onSetColor={setProjectColor}
           onRemove={(project) => void removeProject(project.id)}
           onStartServer={(project) => setView({ kind: 'project', id: project.id })}
+        />
+      )}
+
+      {externalTerminalProject && (
+        <ExternalTerminalDialog
+          project={externalTerminalProject}
+          onClose={() => setExternalTerminalProject(null)}
+          onChoose={(shell) => void openTerminal(shell)}
         />
       )}
     </div>

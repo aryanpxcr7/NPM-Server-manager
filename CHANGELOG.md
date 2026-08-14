@@ -23,6 +23,9 @@ bars all work, because the shell knows it is talking to a terminal.
   picks a different shell. Windows PowerShell, PowerShell 7, Command Prompt and Git
   Bash are offered when they are installed, and Settings → Behaviour chooses which
   one new terminals use, along with the text size.
+- **External terminals are explicit too.** The project toolbar, project context menu,
+  and Ctrl+T shortcut now ask whether to open Command Prompt or PowerShell, starting
+  the selected shell in the project folder.
 - **It matches your theme.** All sixteen ANSI colours are derived from the palette,
   so the terminal changes with the other 24 themes rather than staying on one.
 - **Copy and paste as Windows does it**: Ctrl+C copies when there is a selection

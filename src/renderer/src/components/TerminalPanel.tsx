@@ -356,28 +356,28 @@ export default function TerminalPanel({
   return (
     <div className="term-panel">
       <div className="term-tabs">
-        {sessions.map((session) => (
-          <span
-            key={session.id}
-            className={`term-tab ${session.id === activeId ? 'active' : ''}`}
-          >
-            <button className="term-tab-label" onClick={() => setActiveId(session.id)}>
-              <span className={`status-dot ${session.status === 'running' ? 'running' : 'exited'}`} />
-              {session.title}
-              <span className="term-tab-shell">{session.shellLabel}</span>
-            </button>
-            <button
-              className="term-tab-close"
-              onClick={() => close(session.id)}
-              title={session.status === 'running' ? 'Close terminal (ends the shell)' : 'Close tab'}
-              aria-label="Close terminal"
+        <div className="term-tab-list">
+          {sessions.map((session) => (
+            <span
+              key={session.id}
+              className={`term-tab ${session.id === activeId ? 'active' : ''}`}
             >
-              <X size={12} />
-            </button>
-          </span>
-        ))}
-
-        <div style={{ flex: 1 }} />
+              <button className="term-tab-label" onClick={() => setActiveId(session.id)}>
+                <span className={`status-dot ${session.status === 'running' ? 'running' : 'exited'}`} />
+                {session.title}
+                <span className="term-tab-shell">{session.shellLabel}</span>
+              </button>
+              <button
+                className="term-tab-close"
+                onClick={() => close(session.id)}
+                title={session.status === 'running' ? 'Close terminal (ends the shell)' : 'Close tab'}
+                aria-label="Close terminal"
+              >
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
 
         <div className="term-new">
           <button
@@ -398,6 +398,7 @@ export default function TerminalPanel({
               }}
               title="New terminal with a different shell"
               aria-label="Choose a shell"
+              aria-expanded={menuOpen}
             >
               <ChevronDown size={13} />
             </button>

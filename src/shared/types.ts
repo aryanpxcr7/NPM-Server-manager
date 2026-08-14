@@ -145,6 +145,9 @@ export interface TerminalShell {
   file: string
 }
 
+/** Shell choices for a terminal opened in its own window. */
+export type ExternalTerminalShell = 'cmd' | 'powershell'
+
 export type TerminalStatus = 'running' | 'exited'
 
 /** An integrated terminal session: one pty, one shell, one tab. */

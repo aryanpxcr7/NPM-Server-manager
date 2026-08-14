@@ -11,6 +11,7 @@ import type {
   Project,
   ProjectColor,
   ProjectDetail,
+  ExternalTerminalShell,
   ServerLogLine,
   TerminalBuffer,
   TerminalChunk,
@@ -46,7 +47,7 @@ export interface NsmApi {
     rename: (id: string, name: string) => Promise<Project>
     reveal: (id: string) => Promise<boolean>
     setColor: (id: string, color: ProjectColor | null) => Promise<Project>
-    openTerminal: (id: string) => Promise<void>
+    openTerminal: (id: string, shell: ExternalTerminalShell) => Promise<void>
   }
 
   packages: {

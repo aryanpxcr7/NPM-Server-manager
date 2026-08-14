@@ -4,6 +4,7 @@ import type {
   IpcResult,
   ManagedRun,
   ServerLogLine,
+  ExternalTerminalShell,
   TerminalChunk,
   TerminalSession,
   UpdateProgress
@@ -28,7 +29,7 @@ const api: NsmApi = {
     rename: (id, name) => call('projects:rename', id, name),
     reveal: (id) => call('projects:reveal', id),
     setColor: (id, color) => call('projects:set-color', id, color),
-    openTerminal: (id) => call('projects:open-terminal', id)
+    openTerminal: (id, shell: ExternalTerminalShell) => call('projects:open-terminal', id, shell)
   },
 
   packages: {

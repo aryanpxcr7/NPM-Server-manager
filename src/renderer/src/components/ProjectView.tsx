@@ -40,6 +40,8 @@ interface Props {
   onRefreshDetail: () => void
   /** Opens the app's own terminal in this folder, in the bottom dock. */
   onOpenTerminalPanel: () => void
+  /** Opens the shell chooser for an external terminal in this folder. */
+  onOpenExternalTerminal: () => void
   onStopExternal: (server: DetectedServer) => void
   onRestartExternal: (server: DetectedServer) => void
 }
@@ -56,6 +58,7 @@ export default function ProjectView({
   onRemove,
   onRefreshDetail,
   onOpenTerminalPanel,
+  onOpenExternalTerminal,
   onStopExternal,
   onRestartExternal
 }: Props): React.JSX.Element {
@@ -275,14 +278,8 @@ export default function ProjectView({
         </button>
         <button
           className="btn btn-ghost"
-          title="Open an external terminal in this folder"
-          onClick={async () => {
-            try {
-              await window.nsm.projects.openTerminal(project.id)
-            } catch (err) {
-              toast.error(err instanceof Error ? err.message : String(err))
-            }
-          }}
+          title="Choose Command Prompt or PowerShell"
+          onClick={onOpenExternalTerminal}
         >
           <TerminalSquare size={16} />
         </button>

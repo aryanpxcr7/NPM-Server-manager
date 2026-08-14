@@ -1057,18 +1057,31 @@ table.pkg-table {
 }
 
 .term-tabs {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 4px;
   padding: 5px 8px 5px 10px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  overflow: visible;
+}
+
+.term-tab-list {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
   overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .term-tab {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
   border-radius: var(--radius-sm);
   color: var(--text-dim);
   white-space: nowrap;
@@ -1117,7 +1130,7 @@ table.pkg-table {
   display: inline-flex;
 }
 
-/* Opens upwards: the tab strip is at the top of a panel pinned to the window. */
+/* Opens below the header, over the terminal canvas. */
 .term-shell-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -1146,10 +1159,52 @@ table.pkg-table {
   color: var(--text);
 }
 
+.external-terminal-options {
+  display: grid;
+  gap: 8px;
+}
+
+.external-terminal-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text-dim);
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.external-terminal-option:hover {
+  background: var(--bg-raised);
+  border-color: var(--border-hover);
+  color: var(--text);
+}
+
+.external-terminal-option > span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.external-terminal-option strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.external-terminal-option small {
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
 .term-body {
   flex: 1;
   min-height: 0;
   position: relative;
+  z-index: 1;
 }
 
 /*

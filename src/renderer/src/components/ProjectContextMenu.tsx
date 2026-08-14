@@ -93,7 +93,7 @@ export default function ProjectContextMenu({
         <Terminal size={14} /> Terminal here
       </button>
       <button className="context-item" onClick={run(() => onOpenTerminal(project))}>
-        <TerminalSquare size={14} /> Open in external terminal
+        <TerminalSquare size={14} /> Choose external terminal
       </button>
       <button className="context-item" onClick={run(() => onOpenFolder(project))}>
         <FolderOpen size={14} /> Open folder

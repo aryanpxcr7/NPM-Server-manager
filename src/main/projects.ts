@@ -3,7 +3,14 @@ import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import type { PackageManager, Project, ProjectDetail, ProjectScript, ScriptKind } from '@shared/types'
+import type {
+  ExternalTerminalShell,
+  PackageManager,
+  Project,
+  ProjectDetail,
+  ProjectScript,
+  ScriptKind
+} from '@shared/types'
 import { addProject, findProjectByPath, getProject } from './store'
 
 export interface RawPackageJson {
@@ -31,20 +38,63 @@ export function detectPackageManager(dir: string): PackageManager {
   return 'npm'
 }
 
+interface ExternalShell {
+  label: string
+  file: string
+  args: string[]
+}
+
+function firstExisting(...candidates: (string | null | undefined)[]): string | null {
+  for (const candidate of candidates) {
+    if (candidate && existsSync(candidate)) return candidate
+  }
+  return null
+}
+
+function resolveExternalShell(shell: ExternalTerminalShell): ExternalShell {
+  const system = process.env.SystemRoot ?? 'C:\\Windows'
+  const programFiles = process.env.ProgramFiles ?? 'C:\\Program Files'
+  const localAppData = process.env.LOCALAPPDATA ?? ''
+
+  if (shell === 'cmd') {
+    const file = firstExisting(process.env.ComSpec, path.join(system, 'System32', 'cmd.exe'))
+    if (!file) throw new Error('Command Prompt is not available on this machine.')
+    return { label: 'Command Prompt', file, args: [] }
+  }
+
+  const file = firstExisting(
+    path.join(programFiles, 'PowerShell', '7', 'pwsh.exe'),
+    path.join(programFiles, 'PowerShell', '6', 'pwsh.exe'),
+    localAppData
+      ? path.join(localAppData, 'Microsoft', 'WindowsApps', 'pwsh.exe')
+      : null,
+    path.join(system, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+  )
+  if (!file) throw new Error('PowerShell is not available on this machine.')
+  return { label: 'PowerShell', file, args: ['-NoLogo'] }
+}
+
 /**
- * Opens a terminal in the project folder.
+ * Opens a selected shell in the project folder.
  *
- * Windows Terminal is preferred when present; otherwise a classic console. Paths
- * are passed as argv, never interpolated into a command string, so a folder name
- * containing quotes or ampersands cannot become a command.
+ * Windows Terminal is preferred when present; otherwise a classic console is
+ * opened. Paths are passed as argv, never interpolated into a command string,
+ * so a folder name containing quotes or ampersands cannot become a command.
  */
-export async function openTerminal(dir: string): Promise<void> {
+export async function openTerminal(
+  dir: string,
+  shellId: ExternalTerminalShell = 'cmd'
+): Promise<void> {
   if (!existsSync(dir)) throw new Error(`Folder no longer exists: ${dir}`)
 
+  const shell = resolveExternalShell(shellId)
   const attempts: Array<{ file: string; args: string[] }> = [
-    { file: 'wt.exe', args: ['-d', dir] },
+    { file: 'wt.exe', args: ['-d', dir, shell.file, ...shell.args] },
     // `start` needs a window title as its first quoted argument, hence the ''.
-    { file: process.env.ComSpec ?? 'cmd.exe', args: ['/c', 'start', '', '/D', dir, 'cmd.exe'] }
+    {
+      file: process.env.ComSpec ?? 'cmd.exe',
+      args: ['/c', 'start', '', '/D', dir, shell.file, ...shell.args]
+    }
   ]
 
   let lastError: Error | null = null
@@ -69,7 +119,7 @@ export async function openTerminal(dir: string): Promise<void> {
       lastError = err instanceof Error ? err : new Error(String(err))
     }
   }
-  throw new Error(`Could not open a terminal: ${lastError?.message ?? 'unknown error'}`)
+  throw new Error(`Could not open ${shell.label}: ${lastError?.message ?? 'unknown error'}`)
 }
 
 /** Registers a folder as a project, rejecting anything without a package.json. */

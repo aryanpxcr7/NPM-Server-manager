@@ -33,7 +33,9 @@ and **Ctrl+click links** in the log panel.
 Unreleased on `main`: an **integrated terminal** (real ConPTY through node-pty,
 drawn with xterm.js) in a resizable bottom dock that now has two tabs, *Logs* and
 *Terminal*. Verified end to end against a running app — see the table below and
-`docs/DECISIONS.md` §19. **This has not been released yet:** `package.json` is
+`docs/DECISIONS.md` §19. Project actions also offer a chooser for opening an
+external Command Prompt or PowerShell in the project folder. **This has not been
+released yet:** `package.json` is
 still 0.3.6, and cutting 0.3.7 means following the release procedure below.
 
 Published: **v0.1.0** (history only), **v0.2.0** (defective — see below),
@@ -156,7 +158,8 @@ Each of these was checked against real data, not assumed:
   performed), the terminal font-size buttons in Settings, copy and paste
   (`Ctrl+C`/`Ctrl+V`/right-click through the Electron clipboard), PowerShell 7 —
   `pwsh.exe` is not installed on this machine, so only its `existsSync` lookup is
-  exercised — and the 16-session cap.
+  exercised — and the 16-session cap. The external shell chooser and its classic
+  console fallback were also not driven after the latest UI layering fix.
 - **The terminal in a packaged build.** It works from `out/`, but the native
   binary has to be *outside* the asar; `electron-builder.yml` now unpacks
   `node_modules/@lydell/**` for that reason. Nobody has run `npm run dist` since,
