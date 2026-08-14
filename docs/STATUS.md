@@ -1,7 +1,7 @@
 # Project status
 
 **Last updated:** 2026-08-14
-**Version:** 0.3.6 (plus an unreleased integrated terminal on `main`)
+**Version:** 0.3.7 (integrated terminal and external shell chooser)
 **Source:** https://github.com/aryanpxcr7/NPM-Server-manager
 **Releases:** https://github.com/aryanpxcr7/NPM-SM-Releases  (installers are published here, not to the source repo)
 
@@ -30,17 +30,16 @@ and the app **checks for its own updates** against the releases repo.
 **keyboard shortcuts**, **open in browser when ready** on the Start Server dialog,
 and **Ctrl+click links** in the log panel.
 
-Unreleased on `main`: an **integrated terminal** (real ConPTY through node-pty,
-drawn with xterm.js) in a resizable bottom dock that now has two tabs, *Logs* and
-*Terminal*. Verified end to end against a running app — see the table below and
+**v0.3.7** adds an **integrated terminal** (real ConPTY through node-pty, drawn
+with xterm.js) in a resizable bottom dock with *Logs* and *Terminal* tabs. It was
+verified end to end against a running app — see the table below and
 `docs/DECISIONS.md` §19. Project actions also offer a chooser for opening an
-external Command Prompt or PowerShell in the project folder. **This has not been
-released yet:** `package.json` is
-still 0.3.6, and cutting 0.3.7 means following the release procedure below.
+external Command Prompt or PowerShell in the project folder. The source and
+installer release procedure is recorded below.
 
 Published: **v0.1.0** (history only), **v0.2.0** (defective — see below),
 **v0.3.0**, **v0.3.1**, **v0.3.2**, **v0.3.3**, **v0.3.4**, **v0.3.5**,
-**v0.3.6** (current).
+**v0.3.6**, **v0.3.7** (current).
 
 **Releases before 0.3.2 are retired** — installers deleted, notes annotated, and
 `update-policy.json` sets a minimum supported version of 0.3.2 so those builds get
@@ -119,6 +118,7 @@ Each of these was checked against real data, not assumed:
 | Shortcut binding logic | 30/30 assertions against the real `lib/shortcuts.ts` and `lib/settings.ts` (esbuild → node, with a localStorage stub): combo validation, override resolution, the combo→id lookup, key-chip labels, round-tripping through storage, and coercion of stored bindings that are invalid, duplicated, unknown, or for a shortcut that has since become fixed |
 | Theme palettes | `npm run check:themes` measures all 25 against the pairs the UI actually renders (body/dim/faint text on the background, button label on the accent, accent on the background) and the dark/light flag against the background's luminance: 25/25 pass. Ayu Light needed its accent darkened — the published `#fa8d3e` is 2.3:1 on its own background |
 | The 0.3.6 release itself | Anonymous check of what a user's app sees: `releases/latest` returns tag `v0.3.6`, not a draft, with all four assets. The installer downloaded anonymously is 82,130,032 bytes, starts `MZ`, and its SHA-256 matches the published `SHA256SUMS.txt`. Before upload, the packaged `app.asar` was grepped for markers of all four of the day's changes, so it cannot be a stale bundle like v0.2.0 |
+| The 0.3.7 release | Published `v0.3.7` to the public releases repo with the installer, blockmap, `SHA256SUMS.txt`, and `update-policy.json`. The installer is 82,413,570 bytes, starts `MZ`, and hashes to `7dde6993e22fc4b329668c6f00019fefdc5c85569e83d39c530633a9d466a5b7`; the packaged `app.asar` contains the 0.3.7 and terminal-picker markers |
 | node-pty under this Electron | Loaded `@lydell/node-pty` in Electron 33, spawned a real ConPTY, wrote `echo`, got the output back, and killed it. Kill behaviour measured both ways: `pty.kill()` took 145 ms and took a grandchild `node` with it; `taskkill /T /F` took 1.1 s for the same result. This was checked *before* anything was built on it |
 | The integrated terminal, driven for real | 28 checks over three passes against the built app, driven over CDP with real key events (`Input.dispatchKeyEvent`), reading back the text on screen. Pass 1 (12): the panel opens a session by itself, PowerShell draws its prompt, typing `echo NSM-PROBE-4242` comes back echoed, output survives switching to Logs and back, the + button opens a second terminal, closing one tab leaves the other running, and Ctrl+` hides and restores the dock *from inside the shell*. Pass 2 (9): opened from a project's toolbar, the session's cwd is the project folder, the prompt shows it, `node -e "console.log(process.cwd())"` prints `…\VibeCoding Projects\NPM Server manager` — a path with a space, which has broken this codebase before — and typing `exit` marks the tab exited and says so on screen. Pass 3 (7): three shells detected, the picker offers them, and a Git Bash session opens and draws its MINGW64 prompt |
 | Control over external servers | 21 checks against a fixture started the way a user's terminal starts one (`Start-Process` → `npm run dev`, in a folder whose name contains a space), driven over CDP. The port holder is detected, its `dev` script is recovered by walking npm → cmd.exe → node, it is *not* restartable until the folder is registered as a project and is immediately afterwards, it appears as a chip on the project page, and the Start dialog greys out the script it is already running. *Restart here* stopped pid 16544 and brought the server back on the same port as managed pid 37028 with its output captured; the old tree — node, its `cmd.exe` shim and the npm parent — was entirely gone. Stopping one from the project page freed the port and removed the chip |
@@ -160,10 +160,10 @@ Each of these was checked against real data, not assumed:
   `pwsh.exe` is not installed on this machine, so only its `existsSync` lookup is
   exercised — and the 16-session cap. The external shell chooser and its classic
   console fallback were also not driven after the latest UI layering fix.
-- **The terminal in a packaged build.** It works from `out/`, but the native
-  binary has to be *outside* the asar; `electron-builder.yml` now unpacks
-  `node_modules/@lydell/**` for that reason. Nobody has run `npm run dist` since,
-  so confirm a terminal opens in the installed copy before publishing 0.3.7.
+- **The terminal in an installed copy.** The v0.3.7 installer was packaged with
+  the native `@lydell/node-pty` files unpacked outside the asar, and its packaged
+  marker checks passed. The installed copy has not been manually launched in this
+  release session, so confirm a terminal opens after installation.
 
 These paths exist and typecheck but have never been executed. Do not describe them
 as working.

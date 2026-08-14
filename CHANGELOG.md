@@ -7,7 +7,7 @@ This project uses [semantic versioning](https://semver.org/).
 
 ---
 
-## Unreleased
+## 0.3.7 — 2026-08-14
 
 ### An integrated terminal
 
