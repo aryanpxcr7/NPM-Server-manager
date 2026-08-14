@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Check, Command, Palette, RotateCcw, SlidersHorizontal } from 'lucide-react'
 import Modal from './Modal'
 import { useSettings } from './SettingsProvider'
-import { DEFAULT_SETTINGS, SCAN_INTERVALS } from '../lib/settings'
+import { DEFAULT_SETTINGS, SCAN_INTERVALS, type Settings } from '../lib/settings'
 import {
   comboKeys,
   comboOf,
@@ -21,6 +21,44 @@ const TABS: { id: Tab; label: string; icon: typeof Palette }[] = [
   { id: 'behaviour', label: 'Behaviour', icon: SlidersHorizontal },
   { id: 'shortcuts', label: 'Shortcuts', icon: Command }
 ]
+
+/**
+ * Reset is per tab, not global.
+ *
+ * One "Reset to defaults" button in the footer of a tabbed dialog looks like it
+ * resets the tab you are looking at. It did not — resetting from the Shortcuts
+ * tab also threw away the user's theme.
+ */
+const TAB_NOUN: Record<Tab, string> = {
+  appearance: 'theme',
+  behaviour: 'behaviour',
+  shortcuts: 'shortcuts'
+}
+
+const TAB_DEFAULTS: Record<Tab, Partial<Settings>> = {
+  appearance: { theme: DEFAULT_SETTINGS.theme },
+  behaviour: {
+    openWhenReady: DEFAULT_SETTINGS.openWhenReady,
+    devScript: DEFAULT_SETTINGS.devScript,
+    scanIntervalMs: DEFAULT_SETTINGS.scanIntervalMs
+  },
+  shortcuts: { shortcuts: {} }
+}
+
+function isTabDefault(tab: Tab, settings: Settings): boolean {
+  switch (tab) {
+    case 'appearance':
+      return settings.theme === DEFAULT_SETTINGS.theme
+    case 'behaviour':
+      return (
+        settings.openWhenReady === DEFAULT_SETTINGS.openWhenReady &&
+        settings.devScript === DEFAULT_SETTINGS.devScript &&
+        settings.scanIntervalMs === DEFAULT_SETTINGS.scanIntervalMs
+      )
+    case 'shortcuts':
+      return Object.keys(settings.shortcuts).length === 0
+  }
+}
 
 /** A miniature of the app drawn in the theme's own colours. */
 function ThemePreview({ theme }: { theme: Theme }): React.JSX.Element {
@@ -88,7 +126,6 @@ function ShortcutTab(): React.JSX.Element {
   const [problem, setProblem] = useState<string | null>(null)
 
   const bindings = resolveBindings(settings.shortcuts)
-  const customised = Object.keys(settings.shortcuts).length > 0
 
   const bind = (id: ShortcutId, combo: string): void => {
     const clash = SHORTCUTS.find((s) => s.id !== id && bindings[s.id] === combo)
@@ -201,20 +238,6 @@ function ShortcutTab(): React.JSX.Element {
       </div>
 
       {problem && <p className="shortcut-problem">{problem}</p>}
-
-      {customised && (
-        <button
-          className="btn btn-sm"
-          style={{ marginTop: 16 }}
-          onMouseDown={(e) => {
-            e.stopPropagation()
-            update({ shortcuts: {} })
-            setProblem(null)
-          }}
-        >
-          <RotateCcw size={13} /> Reset all shortcuts
-        </button>
-      )}
     </div>
   )
 }
@@ -241,10 +264,11 @@ export default function SettingsDialog({
         <>
           <button
             className="btn btn-sm"
-            onClick={() => update({ ...DEFAULT_SETTINGS, shortcuts: {} })}
-            title="Theme, behaviour -- everything back to how it shipped"
+            onClick={() => update(TAB_DEFAULTS[tab])}
+            disabled={isTabDefault(tab, settings)}
+            title={`Put ${TAB_NOUN[tab]} back to how it shipped. Nothing on the other tabs changes.`}
           >
-            Reset to defaults
+            Reset {TAB_NOUN[tab]}
           </button>
           <div style={{ flex: 1 }} />
           <button className="btn btn-sm btn-primary" onClick={onClose}>

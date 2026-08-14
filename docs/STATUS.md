@@ -105,7 +105,8 @@ Each of these was checked against real data, not assumed:
 | Updater against a private repo | Reproduced the silent failure, then confirmed anonymous 200 + downloadable asset once public |
 | Version comparator | 13/13 cases incl. `0.10.0 > 0.9.0`, prerelease ordering, and unparseable input |
 | `LogTailer` | 8/8 assertions against the real module: live appends, partial lines, CRLF, multi-byte split across reads, truncation resync, flush on stop |
-| The UI, driven for real | An offscreen Electron window loading the renderer with a stubbed `window.nsm`, driven by `webContents.sendInputEvent` (real mouse and key events, not synthetic ones): the settings dialog opens on Ctrl+, 25 theme cards render, clicking Gruvbox Dark repaints the window and persists, the Shortcuts tab records a real Ctrl+Alt+K, and the rebound combo dispatches while the old one no longer does. Ctrl+T/Ctrl+E/Ctrl+/ all reach their handlers |
+| The UI, driven for real | An Electron window loading the renderer with a stubbed `window.nsm`, driven by `webContents.sendInputEvent` (real mouse and key events, not synthetic ones): the settings dialog opens on Ctrl+, 25 theme cards render, clicking Gruvbox Dark repaints the window and persists, the Shortcuts tab records a real Ctrl+Alt+K, and the rebound combo dispatches while the old one no longer does. Ctrl+T/Ctrl+E/Ctrl+/ all reach their handlers |
+| Reset is scoped to its tab | Same harness: pick Gruvbox Dark → rebind a shortcut → reset from the Shortcuts tab. Bindings clear, the theme is untouched (both stored and live), and the button disables itself. From Appearance the same button reads *Reset theme* and resets only that |
 | Shortcut binding logic | 30/30 assertions against the real `lib/shortcuts.ts` and `lib/settings.ts` (esbuild → node, with a localStorage stub): combo validation, override resolution, the combo→id lookup, key-chip labels, round-tripping through storage, and coercion of stored bindings that are invalid, duplicated, unknown, or for a shortcut that has since become fixed |
 | Theme palettes | `npm run check:themes` measures all 25 against the pairs the UI actually renders (body/dim/faint text on the background, button label on the accent, accent on the background) and the dark/light flag against the background's luminance: 25/25 pass. Ayu Light needed its accent darkened — the published `#fa8d3e` is 2.3:1 on its own background |
 | Log link parser | 13/13 cases through the real `lib/links.ts` (esbuild → node): Vite/Next banners, bare `localhost:8080`, trailing `.` and `)`, ANSI-wrapped URLs, `0.0.0.0` → `localhost`, `[::1]`, two URLs on one line, and non-loopback links correctly *not* auto-opened |
@@ -241,6 +242,13 @@ the interpreter's own path in argv[0].
 
 Regression guard: a dev server running from a spaced project path must still match
 its project. There is no automated test for this yet — see gap #6.
+
+**"Reset to defaults" reset everything from every tab** (fixed 2026-08-14, before
+release). One global reset button in the footer of a tabbed dialog reads as
+"reset this tab": pressing it from the Shortcuts tab threw away the user's theme.
+It is now scoped — *Reset theme* / *Reset behaviour* / *Reset shortcuts*, disabled
+when that tab is already at its defaults. The redundant "Reset all shortcuts"
+button inside the pane went with it.
 
 **Rebinding rejected the chord as you pressed it** (fixed 2026-08-14, before
 release). Holding Ctrl fires its own `keydown` with `key === 'Control'`, so the

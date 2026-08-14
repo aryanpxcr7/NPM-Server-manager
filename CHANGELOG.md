@@ -20,6 +20,10 @@ A settings dialog (**Ctrl+,**) with three tabs:
   you keep the app open all day).
 - **Shortcuts** — the full list, below.
 
+Reset is per tab: the footer button reads *Reset theme*, *Reset behaviour* or
+*Reset shortcuts* depending on where you are, and is greyed out when that tab is
+already untouched. Nothing on the other tabs moves.
+
 ### 25 themes
 
 Gruvbox Dark and Gruvbox Material, Dracula, Nord, Tokyo Night, Catppuccin Mocha,
