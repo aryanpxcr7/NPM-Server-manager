@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Hammer, Play, Rocket, TerminalSquare, TestTube2 } from 'lucide-react'
 import type { ProjectScript, ScriptKind } from '@shared/types'
 import Modal from './Modal'
+import { useSettings } from './SettingsProvider'
 
 interface Props {
   projectName: string
@@ -10,25 +11,6 @@ interface Props {
   runningScripts: string[]
   onPick: (script: string, openWhenReady: boolean) => void
   onClose: () => void
-}
-
-/** The redirect-on-start choice is remembered; it is a habit, not a per-run decision. */
-const OPEN_PREF_KEY = 'nsm.openWhenReady'
-
-function readOpenPref(): boolean {
-  try {
-    return window.localStorage.getItem(OPEN_PREF_KEY) === '1'
-  } catch {
-    return false
-  }
-}
-
-function writeOpenPref(value: boolean): void {
-  try {
-    window.localStorage.setItem(OPEN_PREF_KEY, value ? '1' : '0')
-  } catch {
-    // A blocked localStorage just means the choice is not remembered.
-  }
 }
 
 const ICONS: Record<ScriptKind, typeof Play> = {
@@ -63,8 +45,10 @@ export default function StartServerDialog({
   onPick,
   onClose
 }: Props): React.JSX.Element {
+  const { settings, update } = useSettings()
   const [showAll, setShowAll] = useState(false)
-  const [openWhenReady, setOpenWhenReady] = useState(readOpenPref)
+  // Ticking the box here is a lasting choice, so it writes straight to settings.
+  const openWhenReady = settings.openWhenReady
 
   // The common case is dev or build, so everything else hides behind a toggle
   // rather than burying the two buttons people actually came for.
@@ -157,10 +141,7 @@ export default function StartServerDialog({
               type="checkbox"
               className="checkbox"
               checked={openWhenReady}
-              onChange={(e) => {
-                setOpenWhenReady(e.target.checked)
-                writeOpenPref(e.target.checked)
-              }}
+              onChange={(e) => update({ openWhenReady: e.target.checked })}
             />
             <span>
               Open in browser when ready

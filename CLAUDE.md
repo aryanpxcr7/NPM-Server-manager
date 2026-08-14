@@ -17,14 +17,16 @@ manages npm dependencies for folders you register as projects.
 ## Commands
 
 ```bash
-npm run dev        # hot-reloading dev window (Vite dev server + Electron)
-npm run typecheck  # tsc --noEmit over both projects; run this before claiming done
-npm run build      # typecheck + bundle to out/
-npm run dist       # build + package a Windows installer into release/
+npm run dev          # hot-reloading dev window (Vite dev server + Electron)
+npm run typecheck    # tsc --noEmit over both projects; run this before claiming done
+npm run build        # typecheck + bundle to out/
+npm run check:themes # contrast check over every theme palette
+npm run dist         # build + package a Windows installer into release/
 ```
 
-There is no test suite yet. `npm run typecheck` is the only automated gate — do
-not report work as complete without running it.
+There is no test suite yet. `npm run typecheck` is the general gate — do not
+report work as complete without running it — and `npm run check:themes` is the
+gate for anything touching `lib/themes.ts`.
 
 ## Architecture
 
@@ -64,8 +66,17 @@ IPC error. Never call `ipcMain.handle` directly; always go through `handle()`.
 | `main/packages.ts` | `npm ls` / `npm outdated` parsing, severity, update planning |
 | `main/projects.ts` | `package.json` reading, script classification |
 | `main/store.ts` | Project persistence (atomic JSON writes to `userData`) |
+| `renderer/src/lib/themes.ts` | Theme palettes and `applyTheme()` |
+| `renderer/src/lib/settings.ts` | User settings (localStorage), read through `SettingsProvider` |
+| `renderer/src/lib/shortcuts.ts` | The shortcut table — reference list *and* dispatch keys |
+| `renderer/src/lib/links.ts` | URL detection in log output |
 
 ## Rules specific to this codebase
+
+**Never hardcode a colour in `styles.css`.** Every colour is either one of the
+eighteen theme tokens or a `color-mix()` over them, or 25 themes break one at a
+time. Add a theme by appending to `THEMES`, then run `npm run check:themes`. See
+`docs/DECISIONS.md` §18.
 
 **Never spawn npm through a shell.** Use `runNpm()` from `main/toolchain.ts`, or
 spawn `nodeExe` with `npmCli` as the first argument. Project paths and script

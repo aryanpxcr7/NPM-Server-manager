@@ -4,6 +4,7 @@ import {
   Layers,
   RefreshCw,
   Server,
+  Settings as SettingsIcon,
   Terminal,
   Zap
 } from 'lucide-react'
@@ -22,13 +23,13 @@ import ProjectContextMenu, { type MenuTarget } from './components/ProjectContext
 import ProjectView from './components/ProjectView'
 import QuitDialog from './components/QuitDialog'
 import ServersView from './components/ServersView'
+import SettingsDialog from './components/SettingsDialog'
+import { SettingsProvider, useSettings } from './components/SettingsProvider'
 import UpdateBanner from './components/UpdateBanner'
 import UpdateDialog from './components/UpdateDialog'
 import { ToastProvider, useToast } from './components/Toasts'
 import { firstServerUrl } from './lib/links'
-
-/** How often the port table is re-read while the app is focused. */
-const SCAN_INTERVAL_MS = 4000
+import { comboOf } from './lib/shortcuts'
 
 /**
  * How long "open in browser when ready" waits for a starting server to reveal an
@@ -40,6 +41,7 @@ type View = { kind: 'servers' } | { kind: 'project'; id: string }
 
 function Shell(): React.JSX.Element {
   const toast = useToast()
+  const { settings } = useSettings()
 
   const [projects, setProjects] = useState<Project[]>([])
   const [view, setView] = useState<View>({ kind: 'servers' })
@@ -59,6 +61,11 @@ function Shell(): React.JSX.Element {
   const [updatePrompted, setUpdatePrompted] = useState(false)
   const [updateAutoStart, setUpdateAutoStart] = useState(false)
   const [quitPrompt, setQuitPrompt] = useState<{ liveRuns: number } | null>(null)
+  const [settingsTab, setSettingsTab] = useState<'appearance' | 'behaviour' | 'shortcuts' | null>(
+    null
+  )
+  // Lifted out of ProjectView so a shortcut can open the script picker too.
+  const [startPickerOpen, setStartPickerOpen] = useState(false)
 
   const errorRef = useRef(toast.error)
   errorRef.current = toast.error
@@ -196,13 +203,13 @@ function Shell(): React.JSX.Element {
     const tick = (): void => {
       if (document.visibilityState === 'visible') void scan()
     }
-    const timer = window.setInterval(tick, SCAN_INTERVAL_MS)
+    const timer = window.setInterval(tick, settings.scanIntervalMs)
     document.addEventListener('visibilitychange', tick)
     return () => {
       window.clearInterval(timer)
       document.removeEventListener('visibilitychange', tick)
     }
-  }, [scan])
+  }, [scan, settings.scanIntervalMs])
 
   // The main process defers the quit decision to the app's own dialog.
   useEffect(() => window.nsm.app.onConfirmQuit(setQuitPrompt), [])
@@ -387,6 +394,128 @@ function Shell(): React.JSX.Element {
     [liveRuns]
   )
 
+  /** The run the shortcuts act on: whatever the log panel is showing, else the newest. */
+  const activeRun = useMemo(
+    () => liveRuns.find((r) => r.runId === activeRunId) ?? liveRuns[0] ?? null,
+    [liveRuns, activeRunId]
+  )
+
+  const startDevScript = (): void => {
+    if (view.kind !== 'project' || !detail) {
+      toast.info('Open a project first — Ctrl+D starts its dev server.')
+      return
+    }
+    const script =
+      detail.scripts.find((s) => s.name === settings.devScript) ??
+      detail.scripts.find((s) => s.kind === 'dev')
+    if (!script) {
+      toast.info(`${detail.project.name} has no "${settings.devScript}" script.`)
+      return
+    }
+    if (liveRuns.some((r) => r.projectId === detail.project.id && r.script === script.name)) {
+      toast.info(`"${script.name}" is already running.`)
+      return
+    }
+    void startServer(detail.project.id, script.name, settings.openWhenReady)
+  }
+
+  // Reassigned every render, so the listener below always sees current state
+  // without being torn down and rebuilt on each keystroke's worth of change.
+  const shortcutRef = useRef<(e: KeyboardEvent) => void>(() => undefined)
+  shortcutRef.current = (e: KeyboardEvent): void => {
+    // Every shortcut is Ctrl-based, so this is the cheapest possible rejection.
+    if (!e.ctrlKey && !e.metaKey) return
+
+    const target = e.target as HTMLElement | null
+    if (
+      target?.isContentEditable ||
+      target?.tagName === 'INPUT' ||
+      target?.tagName === 'TEXTAREA' ||
+      target?.tagName === 'SELECT'
+    ) {
+      return
+    }
+    // A dialog owns the keyboard while it is up. Every modal renders `.overlay`,
+    // including the ones owned by child components this one cannot see.
+    if (document.querySelector('.overlay')) return
+
+    const act = (fn: () => void): void => {
+      e.preventDefault()
+      fn()
+    }
+    const combo = comboOf(e)
+    const projectId = view.kind === 'project' ? view.id : null
+
+    // Ctrl+1 … Ctrl+9 jump to a project by position in the sidebar.
+    const digit = /^ctrl\+([1-9])$/.exec(combo)
+    if (digit) {
+      const project = projects[Number(digit[1]) - 1]
+      if (project) act(() => setView({ kind: 'project', id: project.id }))
+      return
+    }
+
+    switch (combo) {
+      case 'ctrl+,':
+        return act(() => setSettingsTab('appearance'))
+      case 'ctrl+/':
+        return act(() => setSettingsTab('shortcuts'))
+      case 'ctrl+0':
+        return act(() => setView({ kind: 'servers' }))
+      case 'ctrl+l':
+        return act(() => setShowLogs((v) => !v))
+      case 'ctrl+r':
+        return act(() => void scan(true))
+      case 'ctrl+o':
+        return act(() => void addProjects())
+      case 'ctrl+d':
+        return act(startDevScript)
+      case 'ctrl+enter':
+        return act(() =>
+          projectId ? setStartPickerOpen(true) : toast.info('Open a project first.')
+        )
+      case 'ctrl+t':
+        return act(() =>
+          projectId
+            ? void window.nsm.projects.openTerminal(projectId)
+            : toast.info('Open a project first.')
+        )
+      case 'ctrl+e':
+        return act(() =>
+          projectId
+            ? void window.nsm.projects.reveal(projectId)
+            : toast.info('Open a project first.')
+        )
+      case 'ctrl+shift+s':
+        return act(() =>
+          activeRun ? void stopRun(activeRun.runId) : toast.info('No server is running.')
+        )
+      case 'ctrl+shift+r':
+        return act(() =>
+          activeRun ? void restartRun(activeRun.runId) : toast.info('No server is running.')
+        )
+      case 'ctrl+b':
+        return act(() => {
+          const port = activeRun?.ports[0]
+          if (port === undefined) {
+            toast.info('No server with a known port yet.')
+            return
+          }
+          void window.nsm.openExternal(`http://localhost:${port}`)
+        })
+      default:
+        return
+    }
+  }
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => shortcutRef.current(e)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // The picker belongs to whichever project is open; switching closes it.
+  useEffect(() => setStartPickerOpen(false), [view])
+
   return (
     <div className="app">
       <aside className="sidebar">
@@ -395,6 +524,14 @@ function Shell(): React.JSX.Element {
             <Zap size={15} />
           </div>
           <h1>NPM Server Manager</h1>
+          <button
+            className="btn-ghost btn-sm brand-settings"
+            onClick={() => setSettingsTab('appearance')}
+            title="Settings — themes, behaviour, shortcuts (Ctrl+,)"
+            aria-label="Settings"
+          >
+            <SettingsIcon size={16} />
+          </button>
         </div>
 
         <div className="nav-list">
@@ -514,6 +651,8 @@ Right-click for options`}
           <ProjectView
             detail={detail}
             runs={runs}
+            startPickerOpen={startPickerOpen}
+            onStartPickerChange={setStartPickerOpen}
             onStart={startServer}
             onStop={stopRun}
             onRestart={restartRun}
@@ -584,6 +723,10 @@ Right-click for options`}
         />
       )}
 
+      {settingsTab && (
+        <SettingsDialog initialTab={settingsTab} onClose={() => setSettingsTab(null)} />
+      )}
+
       {quitPrompt && (
         <QuitDialog
           liveRuns={quitPrompt.liveRuns}
@@ -612,8 +755,10 @@ Right-click for options`}
 
 export default function App(): React.JSX.Element {
   return (
-    <ToastProvider>
-      <Shell />
-    </ToastProvider>
+    <SettingsProvider>
+      <ToastProvider>
+        <Shell />
+      </ToastProvider>
+    </SettingsProvider>
   )
 }

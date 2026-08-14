@@ -14,7 +14,8 @@
     "preview": "electron-vite preview",
     "pack": "npm run build; npm run verify-build && electron-builder --dir",
     "dist": "npm run build; npm run verify-build && electron-builder --win",
-    "verify-build": "node scripts/verify-build.mjs"
+    "verify-build": "node scripts/verify-build.mjs",
+    "check:themes": "node scripts/check-themes.mjs"
   },
   "dependencies": {
     "electron-updater": "^6.3.9"

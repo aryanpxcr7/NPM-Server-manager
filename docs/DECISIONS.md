@@ -485,3 +485,40 @@ unmissable and permanent; that is enough.
 **Why 0.3.2 is the floor:** it is the first release whose downloader produces a
 correct file. 0.2.0 shipped with no updater at all, and 0.3.0/0.3.1 silently
 corrupted what they downloaded, so every earlier build is unable to repair itself.
+
+---
+
+## 18. Themes are eighteen custom properties, everything else is `color-mix()`
+
+`src/renderer/src/lib/themes.ts` holds one object per theme: eighteen colours,
+written onto `<html>` as inline custom properties by `applyTheme()`. Inline
+properties beat the `:root` rule in `styles.css`, so that rule keeps the default
+theme and every *derived* colour.
+
+**The derivations are the point.** Before this, the stylesheet contained twenty-odd
+literals like `rgba(76, 141, 255, 0.25)` — the accent at 25% — scattered through
+badge fills, hover tints and outlines. Those are now
+`color-mix(in srgb, var(--accent) 25%, transparent)`. A theme therefore ships no
+CSS at all: add an entry to the array and the whole UI follows, including the
+stderr colour (`--red` mixed toward `--text`, so it lightens on dark themes and
+darkens on light ones) and the scrollbar hover.
+
+Chromium 130 is the floor for `color-mix()` and Electron 33 ships 130, so there is
+no fallback path and none is needed.
+
+**Three things are not in the palette** and are set by `applyTheme()` from the
+theme's `dark` flag: the modal scrim, the drop shadows and `color-scheme`. A scrim
+tuned for a dark UI is a black smear over a light one, and without `color-scheme`
+Chromium draws dark form controls on a light theme.
+
+**Why `localStorage` and not the main-process store.** Settings are pure renderer
+preference, and `localStorage` is already scoped to the data directory — so a
+`npm run dev` run keeps its own theme, exactly as it keeps its own project list.
+Putting them in `store.ts` would have meant an IPC round trip before the first
+paint, and a flash of the default theme on every launch.
+
+**Palettes are checked, not eyeballed.** `npm run check:themes` bundles the module
+and measures the contrast of every pair the UI actually renders. Each palette is
+transcribed by hand from a published theme, and one wrong digit produces text
+nobody can read; Ayu Light's own accent (`#fa8d3e`, 2.3:1 on its background) was
+caught this way and darkened.

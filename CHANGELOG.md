@@ -9,6 +9,46 @@ This project uses [semantic versioning](https://semver.org/).
 
 ## 0.3.6 — 2026-08-14
 
+### Settings, reachable from the gear beside the app name
+
+A settings dialog (**Ctrl+,**) with three tabs:
+
+- **Appearance** — 25 themes, applied the moment you click one.
+- **Behaviour** — whether starting a server opens the browser, which script the
+  start shortcut runs, and how often the port table is rescanned (2s to 30s; each
+  scan shells out to netstat and the process table, so it is worth turning down if
+  you keep the app open all day).
+- **Shortcuts** — the full list, below.
+
+### 25 themes
+
+Gruvbox Dark and Gruvbox Material, Dracula, Nord, Tokyo Night, Catppuccin Mocha,
+One Dark, Monokai, Solarized Dark, Night Owl, Everforest, Rosé Pine, Kanagawa, Ayu
+Dark, Material Ocean, Synthwave '84, Cobalt2, Zenburn and GitHub Dark — plus
+GitHub Light, Gruvbox Light, Solarized Light, Catppuccin Latte, Rosé Pine Dawn and
+Ayu Light for anyone who works in daylight.
+
+Each one is eighteen colours; every fill, hover tint and outline in the app is
+mixed from them, so the whole UI moves together — including the log panel, the
+badges and the project swatches. `npm run check:themes` measures the contrast of
+every pair the UI puts on screen, and all 25 pass.
+
+### Keyboard shortcuts
+
+| | |
+| --- | --- |
+| `Ctrl+D` | Start the dev server for the open project |
+| `Ctrl+Enter` | Choose a script to start |
+| `Ctrl+Shift+S` / `Ctrl+Shift+R` | Stop / restart the active server |
+| `Ctrl+B` | Open the active server in the browser |
+| `Ctrl+T` / `Ctrl+E` | Terminal / Explorer in the project folder |
+| `Ctrl+1` … `Ctrl+9`, `Ctrl+0` | Jump to a project, or back to Servers |
+| `Ctrl+L` / `Ctrl+R` | Toggle the log panel / rescan ports |
+| `Ctrl+O` | Add a project folder |
+| `Ctrl+,` / `Ctrl+/` | Settings / this list |
+
+They are ignored while a dialog is open or while you are typing in a field.
+
 ### Open the server in the browser when it is ready
 
 The Start Server dialog has an **Open in browser when ready** checkbox. Tick it and

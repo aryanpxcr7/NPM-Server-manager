@@ -26,6 +26,9 @@ import { useToast } from './Toasts'
 interface Props {
   detail: ProjectDetail
   runs: ManagedRun[]
+  /** Owned by App so the Ctrl+Enter shortcut can open the picker as well. */
+  startPickerOpen: boolean
+  onStartPickerChange: (open: boolean) => void
   onStart: (projectId: string, script: string, openWhenReady: boolean) => Promise<void>
   onStop: (runId: string) => void
   onRestart: (runId: string) => void
@@ -36,6 +39,8 @@ interface Props {
 export default function ProjectView({
   detail,
   runs,
+  startPickerOpen,
+  onStartPickerChange,
   onStart,
   onStop,
   onRestart,
@@ -48,7 +53,6 @@ export default function ProjectView({
   const [scan, setScan] = useState<PackageScanResult | null>(null)
   const [scanning, setScanning] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [showStart, setShowStart] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [plan, setPlan] = useState<{ mode: UpdateMode; entries: UpdatePlanEntry[] } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -188,7 +192,7 @@ export default function ProjectView({
 
         <button
           className={`btn ${liveRuns.length > 0 ? '' : 'btn-primary'}`}
-          onClick={() => setShowStart(true)}
+          onClick={() => onStartPickerChange(true)}
           disabled={!!detail.error}
           title={liveRuns.length > 0 ? 'Start another script' : undefined}
         >
@@ -314,14 +318,14 @@ export default function ProjectView({
         )}
       </div>
 
-      {showStart && (
+      {startPickerOpen && (
         <StartServerDialog
           projectName={project.name}
           scripts={detail.scripts}
           runningScripts={runningScripts}
-          onClose={() => setShowStart(false)}
+          onClose={() => onStartPickerChange(false)}
           onPick={async (script, openWhenReady) => {
-            setShowStart(false)
+            onStartPickerChange(false)
             await onStart(project.id, script, openWhenReady)
           }}
         />
