@@ -6,6 +6,7 @@
  * the data directory, so a development run keeps its own settings exactly like it
  * keeps its own project list.
  */
+import { comboProblem, SHORTCUTS, type ShortcutBindings, type ShortcutId } from './shortcuts'
 import { DEFAULT_THEME_ID, THEMES } from './themes'
 
 export interface Settings {
@@ -17,13 +18,16 @@ export interface Settings {
   devScript: string
   /** How often the port table is re-read while the window is visible. */
   scanIntervalMs: number
+  /** Rebound shortcuts, by id. Anything absent keeps its default combo. */
+  shortcuts: ShortcutBindings
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: DEFAULT_THEME_ID,
   openWhenReady: false,
   devScript: 'dev',
-  scanIntervalMs: 4000
+  scanIntervalMs: 4000,
+  shortcuts: {}
 }
 
 export const SCAN_INTERVALS = [2000, 4000, 10_000, 30_000] as const
@@ -32,8 +36,31 @@ const KEY = 'nsm.settings'
 /** Written by the Start Server dialog before there was a settings store. */
 const LEGACY_OPEN_KEY = 'nsm.openWhenReady'
 
+/**
+ * Keeps only rebindings that still make sense: a known id, a combo that is legal
+ * to bind, and no two ids on the same combo. Stored settings outlive the version
+ * that wrote them, so a shortcut that has since been removed or made fixed must
+ * not resurrect itself.
+ */
+function coerceShortcuts(raw: unknown): ShortcutBindings {
+  if (typeof raw !== 'object' || raw === null) return {}
+  const bindings: ShortcutBindings = {}
+  const taken = new Set<string>()
+
+  for (const shortcut of SHORTCUTS) {
+    if (shortcut.fixed) continue
+    const combo = (raw as Record<string, unknown>)[shortcut.id]
+    if (typeof combo !== 'string' || combo === shortcut.combo) continue
+    if (comboProblem(combo) !== null || taken.has(combo)) continue
+    bindings[shortcut.id as ShortcutId] = combo
+    taken.add(combo)
+  }
+  return bindings
+}
+
 function coerce(raw: unknown): Settings {
-  if (typeof raw !== 'object' || raw === null) return { ...DEFAULT_SETTINGS }
+  // `shortcuts` is a nested object, so every fallback needs its own copy.
+  if (typeof raw !== 'object' || raw === null) return { ...DEFAULT_SETTINGS, shortcuts: {} }
   const value = raw as Partial<Record<keyof Settings, unknown>>
 
   const theme =
@@ -49,6 +76,7 @@ function coerce(raw: unknown): Settings {
   const interval = Number(value.scanIntervalMs)
 
   return {
+    shortcuts: coerceShortcuts(value.shortcuts),
     theme,
     openWhenReady:
       typeof value.openWhenReady === 'boolean'
@@ -66,9 +94,13 @@ export function loadSettings(): Settings {
     const stored = window.localStorage.getItem(KEY)
     if (stored !== null) return coerce(JSON.parse(stored))
     // First run after the upgrade: keep the checkbox the user had already set.
-    return { ...DEFAULT_SETTINGS, openWhenReady: window.localStorage.getItem(LEGACY_OPEN_KEY) === '1' }
+    return {
+      ...DEFAULT_SETTINGS,
+      shortcuts: {},
+      openWhenReady: window.localStorage.getItem(LEGACY_OPEN_KEY) === '1'
+    }
   } catch {
-    return { ...DEFAULT_SETTINGS }
+    return { ...DEFAULT_SETTINGS, shortcuts: {} }
   }
 }
 

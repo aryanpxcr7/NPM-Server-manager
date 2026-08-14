@@ -1,9 +1,16 @@
-import { useState } from 'react'
-import { Check, Command, Palette, SlidersHorizontal } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Check, Command, Palette, RotateCcw, SlidersHorizontal } from 'lucide-react'
 import Modal from './Modal'
 import { useSettings } from './SettingsProvider'
 import { DEFAULT_SETTINGS, SCAN_INTERVALS } from '../lib/settings'
-import { comboKeys, SHORTCUTS } from '../lib/shortcuts'
+import {
+  comboKeys,
+  comboOf,
+  comboProblem,
+  resolveBindings,
+  SHORTCUTS,
+  type ShortcutId
+} from '../lib/shortcuts'
 import { THEMES, type Theme } from '../lib/themes'
 
 type Tab = 'appearance' | 'behaviour' | 'shortcuts'
@@ -67,6 +74,148 @@ function ThemeGrid({
   )
 }
 
+/**
+ * The rebindable shortcut table.
+ *
+ * Recording captures keys on the window during the capture phase, so the combo
+ * being recorded cannot also trigger the app's own handler or reach a button as a
+ * click. `Esc` and clicking elsewhere both cancel.
+ */
+function ShortcutTab(): React.JSX.Element {
+  const { settings, update } = useSettings()
+  const [recording, setRecording] = useState<ShortcutId | null>(null)
+  const [problem, setProblem] = useState<string | null>(null)
+
+  const bindings = resolveBindings(settings.shortcuts)
+  const customised = Object.keys(settings.shortcuts).length > 0
+
+  const bind = (id: ShortcutId, combo: string): void => {
+    const clash = SHORTCUTS.find((s) => s.id !== id && bindings[s.id] === combo)
+    if (clash) {
+      setProblem(`${comboKeys(combo).join('+')} already ${clash.label.toLowerCase()}.`)
+      return
+    }
+    const next = { ...settings.shortcuts }
+    const original = SHORTCUTS.find((s) => s.id === id)?.combo
+    if (combo === original) delete next[id]
+    else next[id] = combo
+    update({ shortcuts: next })
+    setRecording(null)
+    setProblem(null)
+  }
+
+  useEffect(() => {
+    if (!recording) return
+
+    const onKey = (e: KeyboardEvent): void => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (e.key === 'Escape') {
+        setRecording(null)
+        setProblem(null)
+        return
+      }
+      const combo = comboOf(e)
+      // Modifiers arrive as their own keydown events; wait for the real key.
+      if (/^(ctrl|alt|shift|meta)(\+(ctrl|alt|shift|meta))*$/.test(combo)) return
+
+      const why = comboProblem(combo)
+      if (why) {
+        setProblem(why)
+        return
+      }
+      bind(recording, combo)
+    }
+
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+    // Deliberately no dependency array: the listener closes over the current
+    // bindings, and re-attaching each render is cheaper than memoising them.
+  })
+
+  return (
+    <div className="settings-pane" onMouseDown={() => setRecording(null)}>
+      <p className="settings-note">
+        Click a shortcut to rebind it, then press the keys you want. Shortcuts are ignored while a
+        dialog is open or while you are typing in a field.
+      </p>
+
+      <div className="shortcut-list">
+        {SHORTCUTS.map((shortcut) => {
+          const combo = bindings[shortcut.id]
+          const isRecording = recording === shortcut.id
+          const changed = settings.shortcuts[shortcut.id] !== undefined
+
+          return (
+            <div key={shortcut.id} className="shortcut-row">
+              <span className="shortcut-label">
+                {shortcut.label}
+                {shortcut.needs && <span className="hint">needs {shortcut.needs}</span>}
+              </span>
+
+              {changed && (
+                <button
+                  className="btn-ghost btn-sm shortcut-reset"
+                  title="Back to the default"
+                  onMouseDown={(e) => {
+                    e.stopPropagation()
+                    const next = { ...settings.shortcuts }
+                    delete next[shortcut.id]
+                    update({ shortcuts: next })
+                  }}
+                >
+                  <RotateCcw size={13} />
+                </button>
+              )}
+
+              {shortcut.fixed ? (
+                <span className="shortcut-keys">
+                  {(shortcut.display ?? []).map((key, i) => (
+                    <kbd key={i}>{key}</kbd>
+                  ))}
+                  <span className="shortcut-range">… 9 · fixed</span>
+                </span>
+              ) : (
+                <button
+                  className={`shortcut-keys editable ${isRecording ? 'recording' : ''}`}
+                  onMouseDown={(e) => {
+                    e.stopPropagation()
+                    setProblem(null)
+                    setRecording(isRecording ? null : shortcut.id)
+                  }}
+                  title="Click, then press the keys"
+                >
+                  {isRecording ? (
+                    <span className="shortcut-recording">Press keys… (Esc cancels)</span>
+                  ) : (
+                    comboKeys(combo).map((key, i) => <kbd key={i}>{key}</kbd>)
+                  )}
+                </button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {problem && <p className="shortcut-problem">{problem}</p>}
+
+      {customised && (
+        <button
+          className="btn btn-sm"
+          style={{ marginTop: 16 }}
+          onMouseDown={(e) => {
+            e.stopPropagation()
+            update({ shortcuts: {} })
+            setProblem(null)
+          }}
+        >
+          <RotateCcw size={13} /> Reset all shortcuts
+        </button>
+      )}
+    </div>
+  )
+}
+
 export default function SettingsDialog({
   initialTab = 'appearance',
   onClose
@@ -89,7 +238,7 @@ export default function SettingsDialog({
         <>
           <button
             className="btn btn-sm"
-            onClick={() => update(DEFAULT_SETTINGS)}
+            onClick={() => update({ ...DEFAULT_SETTINGS, shortcuts: {} })}
             title="Theme, behaviour -- everything back to how it shipped"
           >
             Reset to defaults
@@ -185,29 +334,7 @@ export default function SettingsDialog({
         </div>
       )}
 
-      {tab === 'shortcuts' && (
-        <div className="settings-pane">
-          <p className="settings-note">
-            Shortcuts are ignored while a dialog is open or while you are typing in a field.
-          </p>
-          <div className="shortcut-list">
-            {SHORTCUTS.map((shortcut) => (
-              <div key={shortcut.id} className="shortcut-row">
-                <span className="shortcut-label">
-                  {shortcut.label}
-                  {shortcut.needs && <span className="hint">needs {shortcut.needs}</span>}
-                </span>
-                <span className="shortcut-keys">
-                  {(shortcut.display ?? comboKeys(shortcut.combo)).map((key, i) => (
-                    <kbd key={i}>{key}</kbd>
-                  ))}
-                  {shortcut.id === 'project-n' && <span className="shortcut-range">… 9</span>}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {tab === 'shortcuts' && <ShortcutTab />}
     </Modal>
   )
 }

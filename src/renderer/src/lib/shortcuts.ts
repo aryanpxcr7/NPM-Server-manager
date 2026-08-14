@@ -23,14 +23,19 @@ export type ShortcutId =
 
 export interface Shortcut {
   id: ShortcutId
-  /** Normalised combo, as produced by `comboOf`. Empty for ranges like Ctrl+1-9. */
+  /** Default combo, as produced by `comboOf`. Empty for ranges like Ctrl+1-9. */
   combo: string
   /** What is drawn in the settings table when the combo is a range. */
   display?: string[]
   label: string
   /** The state the shortcut needs, shown beside it so a no-op is not a mystery. */
   needs?: string
+  /** True when the combo cannot be rebound, because it is a range of keys. */
+  fixed?: boolean
 }
+
+/** A user's rebindings, by id. Anything absent uses the default combo. */
+export type ShortcutBindings = Partial<Record<ShortcutId, string>>
 
 export const SHORTCUTS: Shortcut[] = [
   { id: 'start-dev', combo: 'ctrl+d', label: 'Start the dev server for the open project', needs: 'a project open' },
@@ -47,7 +52,8 @@ export const SHORTCUTS: Shortcut[] = [
     id: 'project-n',
     combo: '',
     display: ['Ctrl', '1'],
-    label: 'Jump to the first nine projects (Ctrl+1 … Ctrl+9)'
+    label: 'Jump to the first nine projects (Ctrl+1 … Ctrl+9)',
+    fixed: true
   },
   { id: 'servers-view', combo: 'ctrl+0', label: 'Go to Servers' },
   { id: 'settings', combo: 'ctrl+,', label: 'Open settings' },
@@ -69,6 +75,46 @@ export function comboOf(e: KeyboardEvent): string {
   return parts.join('+')
 }
 
+const MODIFIER_KEYS = new Set(['control', 'shift', 'alt', 'meta', 'os'])
+
+/**
+ * Why a combo cannot be bound, or null when it can.
+ *
+ * The modifier requirement is not politeness: the handler runs on every keydown
+ * in the window, so a bare letter would fire while the user is reading the log.
+ */
+export function comboProblem(combo: string): string | null {
+  const parts = combo.split('+')
+  const key = parts[parts.length - 1]
+
+  if (MODIFIER_KEYS.has(key)) return 'Hold a modifier and press another key.'
+  if (key === 'escape') return 'Esc cancels; it cannot be bound.'
+  if (key === 'tab') return 'Tab moves focus; it cannot be bound.'
+  if (!parts.includes('ctrl') && !parts.includes('alt') && !parts.includes('meta')) {
+    return 'Needs Ctrl, Alt or Win, or it would fire while you type.'
+  }
+  if (/^ctrl\+[0-9]$/.test(combo)) return 'Ctrl+0 to Ctrl+9 are reserved for switching projects.'
+  return null
+}
+
+/** Every shortcut's combo, with the user's rebindings applied. */
+export function resolveBindings(overrides: ShortcutBindings): Record<ShortcutId, string> {
+  const resolved = {} as Record<ShortcutId, string>
+  for (const shortcut of SHORTCUTS) {
+    resolved[shortcut.id] = shortcut.fixed ? shortcut.combo : overrides[shortcut.id] ?? shortcut.combo
+  }
+  return resolved
+}
+
+/** The reverse lookup the key handler needs: which shortcut a combo triggers. */
+export function bindingLookup(overrides: ShortcutBindings): Map<string, ShortcutId> {
+  const lookup = new Map<string, ShortcutId>()
+  for (const [id, combo] of Object.entries(resolveBindings(overrides))) {
+    if (combo.length > 0 && !lookup.has(combo)) lookup.set(combo, id as ShortcutId)
+  }
+  return lookup
+}
+
 /** Splits a combo into the keys to draw as separate chips. */
 export function comboKeys(combo: string): string[] {
   return combo.split('+').map((part) => {
@@ -85,10 +131,20 @@ export function comboKeys(combo: string): string[] {
         return 'Enter'
       case 'escape':
         return 'Esc'
-      case ',':
-        return ','
+      case ' ':
+        return 'Space'
+      case 'arrowup':
+        return '↑'
+      case 'arrowdown':
+        return '↓'
+      case 'arrowleft':
+        return '←'
+      case 'arrowright':
+        return '→'
       default:
-        return part.toUpperCase()
+        // Single characters and F-keys read best upper-cased; named keys like
+        // "backspace" read best capitalised.
+        return part.length <= 3 ? part.toUpperCase() : part[0].toUpperCase() + part.slice(1)
     }
   })
 }

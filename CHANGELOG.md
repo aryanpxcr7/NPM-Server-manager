@@ -49,6 +49,12 @@ every pair the UI puts on screen, and all 25 pass.
 
 They are ignored while a dialog is open or while you are typing in a field.
 
+**All of them are rebindable.** Click a shortcut in Settings → Shortcuts and press
+the keys you want; a reset arrow appears beside anything you have changed. A combo
+needs Ctrl, Alt or Win — a bare letter would fire while you read the log — and
+`Ctrl+0` to `Ctrl+9` stay reserved for switching projects. Binding a combo that is
+already taken says which shortcut has it rather than silently stealing it.
+
 ### Open the server in the browser when it is ready
 
 The Start Server dialog has an **Open in browser when ready** checkbox. Tick it and

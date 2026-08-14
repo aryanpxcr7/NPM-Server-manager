@@ -29,7 +29,7 @@ import UpdateBanner from './components/UpdateBanner'
 import UpdateDialog from './components/UpdateDialog'
 import { ToastProvider, useToast } from './components/Toasts'
 import { firstServerUrl } from './lib/links'
-import { comboOf } from './lib/shortcuts'
+import { bindingLookup, comboOf } from './lib/shortcuts'
 
 /**
  * How long "open in browser when ready" waits for a starting server to reveal an
@@ -394,6 +394,9 @@ function Shell(): React.JSX.Element {
     [liveRuns]
   )
 
+  /** Combo → shortcut, with the user's rebindings applied. */
+  const bindings = useMemo(() => bindingLookup(settings.shortcuts), [settings.shortcuts])
+
   /** The run the shortcuts act on: whatever the log panel is showing, else the newest. */
   const activeRun = useMemo(
     () => liveRuns.find((r) => r.runId === activeRunId) ?? liveRuns[0] ?? null,
@@ -446,7 +449,8 @@ function Shell(): React.JSX.Element {
     const combo = comboOf(e)
     const projectId = view.kind === 'project' ? view.id : null
 
-    // Ctrl+1 … Ctrl+9 jump to a project by position in the sidebar.
+    // Ctrl+1 … Ctrl+9 jump to a project by position in the sidebar. Reserved, so
+    // `comboProblem` refuses to rebind anything onto them.
     const digit = /^ctrl\+([1-9])$/.exec(combo)
     if (digit) {
       const project = projects[Number(digit[1]) - 1]
@@ -454,46 +458,46 @@ function Shell(): React.JSX.Element {
       return
     }
 
-    switch (combo) {
-      case 'ctrl+,':
+    switch (bindings.get(combo)) {
+      case 'settings':
         return act(() => setSettingsTab('appearance'))
-      case 'ctrl+/':
+      case 'shortcuts':
         return act(() => setSettingsTab('shortcuts'))
-      case 'ctrl+0':
+      case 'servers-view':
         return act(() => setView({ kind: 'servers' }))
-      case 'ctrl+l':
+      case 'toggle-logs':
         return act(() => setShowLogs((v) => !v))
-      case 'ctrl+r':
+      case 'rescan':
         return act(() => void scan(true))
-      case 'ctrl+o':
+      case 'add-project':
         return act(() => void addProjects())
-      case 'ctrl+d':
+      case 'start-dev':
         return act(startDevScript)
-      case 'ctrl+enter':
+      case 'start-pick':
         return act(() =>
           projectId ? setStartPickerOpen(true) : toast.info('Open a project first.')
         )
-      case 'ctrl+t':
+      case 'terminal':
         return act(() =>
           projectId
             ? void window.nsm.projects.openTerminal(projectId)
             : toast.info('Open a project first.')
         )
-      case 'ctrl+e':
+      case 'reveal':
         return act(() =>
           projectId
             ? void window.nsm.projects.reveal(projectId)
             : toast.info('Open a project first.')
         )
-      case 'ctrl+shift+s':
+      case 'stop':
         return act(() =>
           activeRun ? void stopRun(activeRun.runId) : toast.info('No server is running.')
         )
-      case 'ctrl+shift+r':
+      case 'restart':
         return act(() =>
           activeRun ? void restartRun(activeRun.runId) : toast.info('No server is running.')
         )
-      case 'ctrl+b':
+      case 'open-browser':
         return act(() => {
           const port = activeRun?.ports[0]
           if (port === undefined) {

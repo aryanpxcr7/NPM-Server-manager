@@ -105,6 +105,7 @@ Each of these was checked against real data, not assumed:
 | Updater against a private repo | Reproduced the silent failure, then confirmed anonymous 200 + downloadable asset once public |
 | Version comparator | 13/13 cases incl. `0.10.0 > 0.9.0`, prerelease ordering, and unparseable input |
 | `LogTailer` | 8/8 assertions against the real module: live appends, partial lines, CRLF, multi-byte split across reads, truncation resync, flush on stop |
+| Shortcut binding logic | 30/30 assertions against the real `lib/shortcuts.ts` and `lib/settings.ts` (esbuild → node, with a localStorage stub): combo validation, override resolution, the combo→id lookup, key-chip labels, round-tripping through storage, and coercion of stored bindings that are invalid, duplicated, unknown, or for a shortcut that has since become fixed |
 | Theme palettes | `npm run check:themes` measures all 25 against the pairs the UI actually renders (body/dim/faint text on the background, button label on the accent, accent on the background) and the dark/light flag against the background's luminance: 25/25 pass. Ayu Light needed its accent darkened — the published `#fa8d3e` is 2.3:1 on its own background |
 | Log link parser | 13/13 cases through the real `lib/links.ts` (esbuild → node): Vite/Next banners, bare `localhost:8080`, trailing `.` and `)`, ANSI-wrapped URLs, `0.0.0.0` → `localhost`, `[::1]`, two URLs on one line, and non-loopback links correctly *not* auto-opened |
 
@@ -124,12 +125,13 @@ Each of these was checked against real data, not assumed:
 - **The simplified quit dialog, the run chip's stop/restart buttons, and the
   folder button on external server rows** — all typecheck, none clicked.
 - **The settings dialog, the themes and every keyboard shortcut (added
-  2026-08-14).** Typechecked, built, and the palettes are measured, but no theme
-  has been seen rendered and no shortcut has been pressed. Watch for: the sticky
-  tab bar in a scrolling dialog, the `color-mix` derivations under a *light*
-  theme (all the hardcoded rgba() fills were replaced by mixes over the palette),
-  and the shortcut guard that suppresses everything while `.overlay` is in the
-  DOM.
+  2026-08-14).** Typechecked, built, and the palettes and binding logic are both
+  measured, but no theme has been seen rendered and no shortcut has been pressed.
+  Watch for: the sticky tab bar in a scrolling dialog, the `color-mix`
+  derivations under a *light* theme (all the hardcoded rgba() fills were replaced
+  by mixes over the palette), the shortcut guard that suppresses everything while
+  `.overlay` is in the DOM, and rebinding — its capture-phase listener has to
+  swallow `Esc` before `Modal` sees it and closes the dialog.
 - **"Open in browser when ready" and Ctrl+click in the log (added 2026-08-14).**
   The URL parser underneath is tested (see above) and the app builds, but neither
   the checkbox nor a Ctrl+click has been exercised in a running window. The
