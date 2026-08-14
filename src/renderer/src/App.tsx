@@ -25,9 +25,16 @@ import ServersView from './components/ServersView'
 import UpdateBanner from './components/UpdateBanner'
 import UpdateDialog from './components/UpdateDialog'
 import { ToastProvider, useToast } from './components/Toasts'
+import { firstServerUrl } from './lib/links'
 
 /** How often the port table is re-read while the app is focused. */
 const SCAN_INTERVAL_MS = 4000
+
+/**
+ * How long "open in browser when ready" waits for a starting server to reveal an
+ * address. Generous, because a cold Next.js build can take a while to listen.
+ */
+const OPEN_TIMEOUT_MS = 90_000
 
 type View = { kind: 'servers' } | { kind: 'project'; id: string }
 
@@ -55,6 +62,13 @@ function Shell(): React.JSX.Element {
 
   const errorRef = useRef(toast.error)
   errorRef.current = toast.error
+  const infoRef = useRef(toast.info)
+  infoRef.current = toast.info
+
+  /** Runs waiting to be opened in the browser, mapped to their giving-up timer. */
+  const pendingOpenRef = useRef(new Map<string, number>())
+  /** Mirror of `logs`, so a run armed after its first output can still catch up. */
+  const logsRef = useRef<Record<string, ServerLogLine[]>>({})
 
   const loadProjects = useCallback(async () => {
     try {
@@ -86,6 +100,59 @@ function Shell(): React.JSX.Element {
     } catch (err) {
       errorRef.current(err instanceof Error ? err.message : String(err))
       setDetail(null)
+    }
+  }, [])
+
+  /** Stops waiting to open `runId`; true when it was still armed. */
+  const cancelPendingOpen = useCallback((runId: string): boolean => {
+    const timer = pendingOpenRef.current.get(runId)
+    if (timer === undefined) return false
+    window.clearTimeout(timer)
+    pendingOpenRef.current.delete(runId)
+    return true
+  }, [])
+
+  /** Opens `url` for a run that asked for it, once. Later addresses are ignored. */
+  const openRunUrl = useCallback((runId: string, url: string): void => {
+    if (!cancelPendingOpen(runId)) return
+    window.nsm
+      .openExternal(url)
+      .catch((err: unknown) => errorRef.current(err instanceof Error ? err.message : String(err)))
+  }, [cancelPendingOpen])
+
+  /** Starts waiting for `runId` to reveal an address, and opens it when it does. */
+  const armOpenOnStart = useCallback(
+    (runId: string, script: string): void => {
+      cancelPendingOpen(runId)
+      const timer = window.setTimeout(() => {
+        if (cancelPendingOpen(runId)) {
+          infoRef.current(`"${script}" gave no address to open. Use the port chip when it appears.`)
+        }
+      }, OPEN_TIMEOUT_MS)
+      pendingOpenRef.current.set(runId, timer)
+
+      // Output can arrive before start() resolves, so replay what already landed.
+      for (const line of logsRef.current[runId] ?? []) {
+        const url = firstServerUrl(line.text)
+        if (url) {
+          openRunUrl(runId, url)
+          break
+        }
+      }
+    },
+    [cancelPendingOpen, openRunUrl]
+  )
+
+  useEffect(() => {
+    logsRef.current = logs
+  }, [logs])
+
+  // Clear timers if the shell ever unmounts, so nothing fires into a dead tree.
+  useEffect(() => {
+    const pending = pendingOpenRef.current
+    return () => {
+      for (const timer of pending.values()) window.clearTimeout(timer)
+      pending.clear()
     }
   }, [])
 
@@ -143,6 +210,13 @@ function Shell(): React.JSX.Element {
   // Live output and status from the main process.
   useEffect(() => {
     const offLog = window.nsm.servers.onLog((line) => {
+      // A dev server announces its address long before the port scanner notices
+      // it, so the log is the fast path for "open in browser when ready".
+      if (pendingOpenRef.current.has(line.runId)) {
+        const url = firstServerUrl(line.text)
+        if (url) openRunUrl(line.runId, url)
+      }
+
       setLogs((current) => {
         const existing = current[line.runId] ?? []
         // Mirror the main process ring buffer so a chatty server cannot grow
@@ -170,7 +244,18 @@ function Shell(): React.JSX.Element {
       offLog()
       offRun()
     }
-  }, [scan])
+  }, [scan, openRunUrl])
+
+  // Fallback for servers that print no address: the scanner finds the port they
+  // bound. Also the point where a run that died stops being waited on.
+  useEffect(() => {
+    if (pendingOpenRef.current.size === 0) return
+    for (const run of runs) {
+      if (!pendingOpenRef.current.has(run.runId)) continue
+      if (run.status === 'exited' || run.status === 'failed') cancelPendingOpen(run.runId)
+      else if (run.ports.length > 0) openRunUrl(run.runId, `http://localhost:${run.ports[0]}`)
+    }
+  }, [runs, cancelPendingOpen, openRunUrl])
 
   useEffect(() => {
     if (view.kind === 'project') void loadDetail(view.id)
@@ -190,13 +275,18 @@ function Shell(): React.JSX.Element {
     }
   }
 
-  const startServer = async (projectId: string, script: string): Promise<void> => {
+  const startServer = async (
+    projectId: string,
+    script: string,
+    openWhenReady = false
+  ): Promise<void> => {
     try {
       const run = await window.nsm.servers.start(projectId, script)
       setRuns((current) => [run, ...current.filter((r) => r.runId !== run.runId)])
       setActiveRunId(run.runId)
       setShowLogs(true)
       toast.success(`Started "${script}".`)
+      if (openWhenReady) armOpenOnStart(run.runId, script)
       void scan()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err))

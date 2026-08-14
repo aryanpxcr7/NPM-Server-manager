@@ -791,6 +791,31 @@ table.pkg-table {
   margin-top: 0;
 }
 
+.start-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.start-option .checkbox {
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.start-option .hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
 /* ---------- Log panel ---------- */
 
 .log-panel {
@@ -871,6 +896,24 @@ table.pkg-table {
 }
 .log-line.stdout {
   color: var(--text-dim);
+}
+
+/* Links read as plain text until Ctrl is held, so ordinary selection is unhindered. */
+.log-link {
+  color: var(--accent-hover);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 2px;
+  transition: text-decoration-color 0.12s;
+}
+
+.log-output.mod-held .log-link {
+  cursor: pointer;
+  text-decoration-color: currentColor;
+}
+
+.log-output.mod-held .log-link:hover {
+  color: var(--accent);
 }
 
 /* ---------- Toasts ---------- */

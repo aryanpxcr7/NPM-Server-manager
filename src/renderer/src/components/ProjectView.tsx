@@ -26,7 +26,7 @@ import { useToast } from './Toasts'
 interface Props {
   detail: ProjectDetail
   runs: ManagedRun[]
-  onStart: (projectId: string, script: string) => Promise<void>
+  onStart: (projectId: string, script: string, openWhenReady: boolean) => Promise<void>
   onStop: (runId: string) => void
   onRestart: (runId: string) => void
   onRemove: (projectId: string) => void
@@ -320,9 +320,9 @@ export default function ProjectView({
           scripts={detail.scripts}
           runningScripts={runningScripts}
           onClose={() => setShowStart(false)}
-          onPick={async (script) => {
+          onPick={async (script, openWhenReady) => {
             setShowStart(false)
-            await onStart(project.id, script)
+            await onStart(project.id, script, openWhenReady)
           }}
         />
       )}

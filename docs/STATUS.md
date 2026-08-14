@@ -1,7 +1,7 @@
 # Project status
 
 **Last updated:** 2026-08-14
-**Version:** 0.3.3
+**Version:** 0.3.6 (in package.json; **not published** — 0.3.5 is the newest release)
 **Source:** https://github.com/aryanpxcr7/NPM-Server-manager
 **Releases:** https://github.com/aryanpxcr7/NPM-SM-Releases  (installers are published here, not to the source repo)
 
@@ -26,8 +26,11 @@ Most recent changes: dev servers now **outlive the app** rather than being kille
 on quit (reversed `docs/DECISIONS.md` §8; read §10 before touching `servers.ts`),
 and the app **checks for its own updates** against the releases repo.
 
+Unreleased in the working tree (0.3.6): **open in browser when ready** on the Start
+Server dialog, and **Ctrl+click links** in the log panel.
+
 Published: **v0.1.0** (history only), **v0.2.0** (defective — see below),
-**v0.3.0**, **v0.3.1**, **v0.3.2**, **v0.3.3** (current).
+**v0.3.0**, **v0.3.1**, **v0.3.2**, **v0.3.3**, **v0.3.4**, **v0.3.5** (current).
 
 **Releases before 0.3.2 are retired** — installers deleted, notes annotated, and
 `update-policy.json` sets a minimum supported version of 0.3.2 so those builds get
@@ -101,6 +104,7 @@ Each of these was checked against real data, not assumed:
 | Updater against a private repo | Reproduced the silent failure, then confirmed anonymous 200 + downloadable asset once public |
 | Version comparator | 13/13 cases incl. `0.10.0 > 0.9.0`, prerelease ordering, and unparseable input |
 | `LogTailer` | 8/8 assertions against the real module: live appends, partial lines, CRLF, multi-byte split across reads, truncation resync, flush on stop |
+| Log link parser | 13/13 cases through the real `lib/links.ts` (esbuild → node): Vite/Next banners, bare `localhost:8080`, trailing `.` and `)`, ANSI-wrapped URLs, `0.0.0.0` → `localhost`, `[::1]`, two URLs on one line, and non-loopback links correctly *not* auto-opened |
 
 ---
 
@@ -117,6 +121,11 @@ Each of these was checked against real data, not assumed:
   hand.
 - **The simplified quit dialog, the run chip's stop/restart buttons, and the
   folder button on external server rows** — all typecheck, none clicked.
+- **"Open in browser when ready" and Ctrl+click in the log (added 2026-08-14).**
+  The URL parser underneath is tested (see above) and the app builds, but neither
+  the checkbox nor a Ctrl+click has been exercised in a running window. The
+  wiring to verify: the log fast path (`firstServerUrl` in `App.tsx`'s `onLog`),
+  the port fallback (the effect over `runs`), and the 90 s give-up toast.
 
 These paths exist and typecheck but have never been executed. Do not describe them
 as working.
@@ -180,7 +189,9 @@ line parser — all are pure functions over string input and easy to test.
 Not promised to anyone; think before building.
 
 - System tray icon with running-server count, and minimise-to-tray
-- Detecting a dev server's URL from its stdout rather than inferring from ports
+- Using the URL a dev server prints (now parsed by `renderer/src/lib/links.ts` for
+  the log links and the open-on-start option) as the server's address everywhere,
+  instead of inferring `localhost:<port>` from the port table
 - Per-project environment variable overrides
 - Remembering window size and position
 - A "kill everything on port N" action for stuck ports

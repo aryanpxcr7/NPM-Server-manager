@@ -8,8 +8,27 @@ interface Props {
   scripts: ProjectScript[]
   /** Scripts already running, so we can disable them instead of failing on click. */
   runningScripts: string[]
-  onPick: (script: string) => void
+  onPick: (script: string, openWhenReady: boolean) => void
   onClose: () => void
+}
+
+/** The redirect-on-start choice is remembered; it is a habit, not a per-run decision. */
+const OPEN_PREF_KEY = 'nsm.openWhenReady'
+
+function readOpenPref(): boolean {
+  try {
+    return window.localStorage.getItem(OPEN_PREF_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeOpenPref(value: boolean): void {
+  try {
+    window.localStorage.setItem(OPEN_PREF_KEY, value ? '1' : '0')
+  } catch {
+    // A blocked localStorage just means the choice is not remembered.
+  }
 }
 
 const ICONS: Record<ScriptKind, typeof Play> = {
@@ -45,6 +64,7 @@ export default function StartServerDialog({
   onClose
 }: Props): React.JSX.Element {
   const [showAll, setShowAll] = useState(false)
+  const [openWhenReady, setOpenWhenReady] = useState(readOpenPref)
 
   // The common case is dev or build, so everything else hides behind a toggle
   // rather than burying the two buttons people actually came for.
@@ -110,7 +130,7 @@ export default function StartServerDialog({
                     key={script.name}
                     className="script-option"
                     disabled={isRunning}
-                    onClick={() => onPick(script.name)}
+                    onClick={() => onPick(script.name, openWhenReady)}
                   >
                     <div className={`script-icon ${script.kind}`}>
                       <Icon size={18} />
@@ -131,6 +151,24 @@ export default function StartServerDialog({
               })}
             </div>
           ))}
+
+          <label className="start-option">
+            <input
+              type="checkbox"
+              className="checkbox"
+              checked={openWhenReady}
+              onChange={(e) => {
+                setOpenWhenReady(e.target.checked)
+                writeOpenPref(e.target.checked)
+              }}
+            />
+            <span>
+              Open in browser when ready
+              <span className="hint">
+                The address the server prints is opened once it is listening.
+              </span>
+            </span>
+          </label>
         </div>
       )}
     </Modal>

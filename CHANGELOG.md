@@ -7,6 +7,33 @@ This project uses [semantic versioning](https://semver.org/).
 
 ---
 
+## 0.3.6 — 2026-08-14
+
+### Open the server in the browser when it is ready
+
+The Start Server dialog has an **Open in browser when ready** checkbox. Tick it and
+the address the server prints is opened as soon as it appears — no watching the log
+for the moment `localhost:5173` shows up. The choice is remembered between starts.
+
+The log is the fast path: a dev server announces itself seconds before the port
+scanner notices it. If the server prints nothing, the first port it binds is opened
+instead. Only loopback addresses are opened, so the documentation and telemetry
+links in a startup banner are never followed. After 90 seconds with no address, the
+attempt is dropped with a note rather than left hanging.
+
+### Ctrl+click a link in the log
+
+URLs in the log panel are now links, opened with **Ctrl+click** like in a terminal.
+Plain clicks do nothing on purpose — the panel is text you select and copy, and a
+link that navigated on a stray click would fight that. Links are only underlined
+while Ctrl is held.
+
+Bare `localhost:3000` is recognised as well as full URLs, `0.0.0.0` is rewritten to
+`localhost` because a browser cannot use it, and trailing sentence punctuation is
+kept out of the link.
+
+---
+
 ## 0.3.5 — 2026-08-14
 
 ### No more menu bar on Alt
