@@ -209,10 +209,13 @@ export async function startServer(projectId: string, script: string): Promise<Ma
   try {
     child = spawn(nodeExe, [npmCli, 'run', script], {
       cwd: project.path,
+      // windowsHide gives the child an *invisible* console, which npm's cmd.exe
+      // then inherits. Adding `detached` would give it no console at all, forcing
+      // cmd.exe to allocate a fresh visible one -- that is the terminal window
+      // that used to pop up. Detached is not needed for the process to outlive
+      // the app; Windows does not reap children when their parent exits.
+      // See docs/DECISIONS.md §10.
       windowsHide: true,
-      // Required on Windows: without it the child is torn down with the parent
-      // even when its stdio never touches a pipe.
-      detached: true,
       stdio: ['ignore', fd, fd],
       env: {
         ...process.env,
@@ -310,6 +313,24 @@ export function clearFinishedRuns(): void {
       retire(run)
       runs.delete(id)
     }
+  }
+  persistRuns()
+}
+
+export function liveRunCount(): number {
+  return [...runs.values()].filter((r) => isLive(r.status)).length
+}
+
+/** Stops every running server. Only used when the user explicitly asks to. */
+export async function stopAll(): Promise<void> {
+  await Promise.all(
+    [...runs.values()]
+      .filter((r) => isLive(r.status) && r.pid !== null)
+      .map((r) => killTree(r.pid as number).catch(() => undefined))
+  )
+  // Nothing survives, so the run index should not invite a reattach next launch.
+  for (const run of runs.values()) {
+    if (isLive(run.status)) finish(run, null, 'Stopped on quit.')
   }
   persistRuns()
 }

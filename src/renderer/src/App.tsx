@@ -11,12 +11,14 @@ import type {
   DetectedServer,
   ManagedRun,
   Project,
+  ProjectColor,
   ProjectDetail,
   ServerLogLine,
   UpdateInfo
 } from '@shared/types'
 import type { ToolchainInfo } from '@shared/api'
 import LogPanel from './components/LogPanel'
+import ProjectContextMenu, { type MenuTarget } from './components/ProjectContextMenu'
 import ProjectView from './components/ProjectView'
 import ServersView from './components/ServersView'
 import UpdateBanner from './components/UpdateBanner'
@@ -44,6 +46,7 @@ function Shell(): React.JSX.Element {
   const [update, setUpdate] = useState<UpdateInfo | null>(null)
   const [updateDismissed, setUpdateDismissed] = useState(false)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
+  const [menu, setMenu] = useState<MenuTarget | null>(null)
 
   const errorRef = useRef(toast.error)
   errorRef.current = toast.error
@@ -219,6 +222,27 @@ function Shell(): React.JSX.Element {
     }
   }
 
+  const openTerminal = async (project: Project): Promise<void> => {
+    try {
+      await window.nsm.projects.openTerminal(project.id)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const setProjectColor = async (project: Project, color: ProjectColor | null): Promise<void> => {
+    // Update locally first so the swatch responds instantly.
+    setProjects((current) =>
+      current.map((p) => (p.id === project.id ? { ...p, color } : p))
+    )
+    try {
+      await window.nsm.projects.setColor(project.id, color)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+      await loadProjects()
+    }
+  }
+
   const checkForUpdate = async (): Promise<void> => {
     setCheckingUpdate(true)
     try {
@@ -285,9 +309,19 @@ function Shell(): React.JSX.Element {
                   view.kind === 'project' && view.id === project.id ? 'active' : ''
                 }`}
                 onClick={() => setView({ kind: 'project', id: project.id })}
-                title={project.path}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  setMenu({ project, x: e.clientX, y: e.clientY })
+                }}
+                title={`${project.path}
+
+Right-click for options`}
               >
-                <Layers size={15} style={{ flexShrink: 0 }} />
+                <Layers
+                  size={15}
+                  style={{ flexShrink: 0 }}
+                  className={project.color ? `project-color-${project.color}` : undefined}
+                />
                 <span className="name">{project.name}</span>
                 {runningProjectIds.has(project.id) && <span className="running-dot" />}
               </button>
@@ -410,6 +444,18 @@ function Shell(): React.JSX.Element {
           <UpdateBanner info={update} onDismiss={() => setUpdateDismissed(true)} />
         )}
       </main>
+
+      {menu && (
+        <ProjectContextMenu
+          target={menu}
+          onClose={() => setMenu(null)}
+          onOpenTerminal={openTerminal}
+          onOpenFolder={(project) => void window.nsm.projects.reveal(project.id)}
+          onSetColor={setProjectColor}
+          onRemove={(project) => void removeProject(project.id)}
+          onStartServer={(project) => setView({ kind: 'project', id: project.id })}
+        />
+      )}
     </div>
   )
 }

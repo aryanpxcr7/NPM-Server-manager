@@ -10,9 +10,17 @@ files:
   - out/**/*
   - package.json
 
+# The tray and window icons are read at runtime, so they ship as resources.
+extraResources:
+  - from: build/tray.png
+    to: tray.png
+  - from: build/icon.png
+    to: icon.png
+
 asar: true
 
 win:
+  icon: build/icon.ico
   target:
     - target: nsis
       arch: [x64]

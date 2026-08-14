@@ -191,48 +191,64 @@ interop friction for schema validation and migrations that are not needed yet.
 
 ---
 
-## 10. Dev servers are spawned detached, with logs written to a file
+## 10. Dev servers are spawned with an invisible console, logs written to a file
 
-**Decided:** 2026-08-14, to make §8 actually work.
+**Decided:** 2026-08-14. **Corrected the same day** — an earlier version of this
+section said `detached: true` was required. It is not, and it caused a visible
+terminal window to pop up on every server start.
 
 ```ts
 spawn(nodeExe, [npmCli, 'run', script], {
-  detached: true,                 // required, see below
-  stdio: ['ignore', fd, fd]       // fd is an append handle on a log file
+  windowsHide: true,            // invisible console, inherited by npm's cmd.exe
+  stdio: ['ignore', fd, fd]     // fd is an append handle on a log file
 })
-child.unref()
 ```
 
-Both halves are load-bearing. Measured on Windows 11 / Node 24, child still
-ticking 4 s after the parent exited:
+**Do not add `detached: true` here.** The two Windows creation flags behave very
+differently for a child that itself spawns a console program:
 
-| stdio | detached | Survives parent exit |
+| Flag | Console given to the child | npm's `cmd.exe` then... |
 | --- | --- | --- |
-| pipe | no | **no** — dies on broken pipe |
-| pipe | yes | **no** — outlived parent by ~600 ms, then died |
-| file | no | **no** — killed with the parent |
-| file | yes | **yes** |
-| ignore | yes | yes, but no logs |
+| `windowsHide` → `CREATE_NO_WINDOW` | one that exists but is not shown | inherits it — nothing appears |
+| `detached` → `DETACHED_PROCESS` | **none at all** | has to allocate a fresh **visible** one |
 
-The pipe results are the counter-intuitive part: `detached: true` alone is not
-enough, because the child still dies the moment it writes to a pipe whose read end
-went away with the app. And file-backed stdio alone is not enough either, because
-Windows tears down non-detached children with their parent regardless of stdio.
+`npm run <script>` executes the script through `cmd.exe`. With `DETACHED_PROCESS`
+that `cmd.exe` had no console to inherit, so Windows gave it a new visible one —
+the terminal window that used to flash up. `windowsHide` cannot suppress it,
+because Windows documents `CREATE_NO_WINDOW` as *ignored* when combined with
+`DETACHED_PROCESS`.
 
-Live output therefore comes from **tailing the log file** (`main/logtail.ts`),
-polled rather than `fs.watch`-ed, because `fs.watch` on Windows does not fire
-reliably for appends to an already-open file. The tailer handles partial lines,
-CRLF, multi-byte characters split across reads, and truncation.
+**File-backed stdio is still required.** A child writing to a pipe dies as soon as
+the app exits and it next writes to the now-broken pipe — roughly 600 ms of
+survival, measured. Writing to a file removes that dependency entirely.
+
+**Detached was never needed for survival.** Windows does not reap children when
+their parent exits. Measured with Electron as the parent (a GUI process, which is
+what makes this different from testing under `node.exe`):
+
+| stdio | detached | Console popup | Survives app quit |
+| --- | --- | --- | --- |
+| pipe | no | none | **no** — broken pipe |
+| pipe | yes | — | no |
+| file | yes | **YES** | yes |
+| **file** | **no** | **none** | **yes** ← shipped |
+
+An earlier round of testing wrongly concluded that a non-detached child dies with
+its parent. That was an artefact of the test harness killing the whole process
+tree when its command finished, not Windows behaviour. **When testing process
+lifetime, launch the parent so that nothing else can reap its tree** — e.g. via
+`Start-Process` — or the result is meaningless.
+
+Live output comes from **tailing the log file** (`main/logtail.ts`), polled rather
+than `fs.watch`-ed, because `fs.watch` on Windows does not fire reliably for
+appends to an already-open file. The tailer handles partial lines, CRLF,
+multi-byte characters split across reads, and truncation.
 
 **Accepted cost:** stdout and stderr share one file, so their interleaving is
 preserved but the stream distinction is lost. Error lines are recognised by shape
 instead, which only affects colouring. Separate files would recover the
 distinction but scramble the ordering, which is the more useful property in a
 server log.
-
-A wrapper process that tags each line with its stream would give both, at the cost
-of a script that has to be unpacked from the asar to be spawnable. Not worth it
-yet.
 
 **Consequence to be aware of:** the app no longer receives an `exit` event for
 adopted runs, since it holds no child handle across sessions. Liveness for those
@@ -279,3 +295,52 @@ properly, or dropping it, is still open.
 **Version comparison is hand-rolled** (`isNewer`), for the same reason as §5.
 It compares dotted numbers numerically — `0.10.0` beats `0.9.0`, which a string
 compare gets wrong — and ranks a release above its own prerelease.
+
+---
+
+## 12. Closing the window asks what should happen to running servers
+
+**Decided:** 2026-08-14, refining §8.
+
+§8 made servers outlive the app unconditionally. That is right when you are
+stepping away, but it removes the ability to shut everything down by closing the
+window — and a manager whose own exit leaves processes you now have to hunt is
+only half a tool.
+
+Closing the window therefore asks, but **only when servers are actually running**:
+
+- **Minimise to tray** — the window hides, servers keep running, the tray shows a
+  live count. Optionally remembered for the rest of the session.
+- **Quit and stop servers** — `stopAll()` kills every tree, then quits.
+- **Quit, leave servers running** — the §8 behaviour; the run index is written so
+  the next launch reattaches.
+
+With no servers running the window just closes. That matters: a tool this
+frequently opened must not prompt on every exit, and "are you sure" on a no-op is
+exactly the kind of friction that makes people stop using something.
+
+The remembered choice is deliberately **session-only**. Persisting "always
+minimise" would need a settings screen to undo it, and a user who cannot find why
+their app stopped closing is worse off than one who answers a dialog again
+tomorrow.
+
+**The tray icon exists whenever the app runs**, not only while hidden, so the
+running-server count is glanceable and the app can be reopened after minimising.
+
+---
+
+## 13. Icons are generated, not committed as binaries
+
+**Decided:** 2026-08-14.
+
+`scripts/make-icons.mjs` renders `build/icon.ico`, `icon.png` and `tray.png` from
+code — a rounded gradient tile with a bolt glyph, matching the in-app brand mark.
+Run with `npm run icons`.
+
+It is about 150 lines of pixel maths plus a hand-rolled PNG/ICO encoder over
+`node:zlib`, which is less than an image-processing dependency would cost and
+keeps the artwork reviewable in a diff. The generated files are committed so a
+plain `npm run dist` works without regenerating them.
+
+Changing the artwork means editing the gradient stops or the `BOLT` polygon and
+re-running the script.

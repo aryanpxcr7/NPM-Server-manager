@@ -1,7 +1,8 @@
 import path from 'node:path'
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import type { IpcResult, UpdateMode } from '@shared/types'
-import { getProjectDetail, importProject } from './projects'
+import type { IpcResult, ProjectColor, UpdateMode } from '@shared/types'
+import { PROJECT_COLORS } from '@shared/types'
+import { getProjectDetail, importProject, openTerminal } from './projects'
 import {
   applyUpdates,
   installPackages,
@@ -19,7 +20,13 @@ import {
   startServer,
   stopServer
 } from './servers'
-import { getProject, getProjects, removeProject, renameProject } from './store'
+import {
+  getProject,
+  getProjects,
+  removeProject,
+  renameProject,
+  setProjectColor
+} from './store'
 import { resolveToolchain } from './toolchain'
 import { checkForUpdate, downloadUpdate, installUpdate, releasesPage } from './updates'
 
@@ -86,6 +93,18 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   handle('projects:rename', (id: unknown, name: unknown) =>
     renameProject(requireString(id, 'a project id'), requireString(name, 'a name'))
   )
+
+  handle('projects:set-color', (id: unknown, color: unknown) => {
+    const valid = color === null || (typeof color === 'string' && PROJECT_COLORS.includes(color as ProjectColor))
+    if (!valid) throw new Error('Unknown colour.')
+    return setProjectColor(requireString(id, 'a project id'), color as ProjectColor | null)
+  })
+
+  handle('projects:open-terminal', (id: unknown) => {
+    const project = getProject(requireString(id, 'a project id'))
+    if (!project) throw new Error('Project not found.')
+    return openTerminal(project.path)
+  })
 
   handle('projects:reveal', (id: unknown) => {
     const project = getProject(requireString(id, 'a project id'))

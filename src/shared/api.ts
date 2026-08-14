@@ -9,6 +9,7 @@ import type {
   ManagedRun,
   PackageScanResult,
   Project,
+  ProjectColor,
   ProjectDetail,
   ServerLogLine,
   UpdateInfo,
@@ -40,6 +41,8 @@ export interface NsmApi {
     remove: (id: string) => Promise<boolean>
     rename: (id: string, name: string) => Promise<Project>
     reveal: (id: string) => Promise<boolean>
+    setColor: (id: string, color: ProjectColor | null) => Promise<Project>
+    openTerminal: (id: string) => Promise<void>
   }
 
   packages: {

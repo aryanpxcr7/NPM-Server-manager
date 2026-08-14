@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -30,6 +31,47 @@ export function detectPackageManager(dir: string): PackageManager {
   return 'npm'
 }
 
+/**
+ * Opens a terminal in the project folder.
+ *
+ * Windows Terminal is preferred when present; otherwise a classic console. Paths
+ * are passed as argv, never interpolated into a command string, so a folder name
+ * containing quotes or ampersands cannot become a command.
+ */
+export async function openTerminal(dir: string): Promise<void> {
+  if (!existsSync(dir)) throw new Error(`Folder no longer exists: ${dir}`)
+
+  const attempts: Array<{ file: string; args: string[] }> = [
+    { file: 'wt.exe', args: ['-d', dir] },
+    // `start` needs a window title as its first quoted argument, hence the ''.
+    { file: process.env.ComSpec ?? 'cmd.exe', args: ['/c', 'start', '', '/D', dir, 'cmd.exe'] }
+  ]
+
+  let lastError: Error | null = null
+  for (const attempt of attempts) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const child = spawn(attempt.file, attempt.args, {
+          cwd: dir,
+          detached: true,
+          stdio: 'ignore',
+          // A terminal the user asked for is the one window that should appear.
+          windowsHide: false
+        })
+        child.on('error', reject)
+        child.on('spawn', () => {
+          child.unref()
+          resolve()
+        })
+      })
+      return
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err))
+    }
+  }
+  throw new Error(`Could not open a terminal: ${lastError?.message ?? 'unknown error'}`)
+}
+
 /** Registers a folder as a project, rejecting anything without a package.json. */
 export async function importProject(dir: string): Promise<Project> {
   const resolved = path.resolve(dir)
@@ -48,7 +90,8 @@ export async function importProject(dir: string): Promise<Project> {
     name: pkg.name?.trim() || path.basename(resolved),
     path: resolved,
     addedAt: Date.now(),
-    packageManager: detectPackageManager(resolved)
+    packageManager: detectPackageManager(resolved),
+    color: null
   })
 }
 

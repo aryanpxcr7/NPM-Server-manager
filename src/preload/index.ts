@@ -19,7 +19,9 @@ const api: NsmApi = {
     detail: (id) => call('projects:detail', id),
     remove: (id) => call('projects:remove', id),
     rename: (id, name) => call('projects:rename', id, name),
-    reveal: (id) => call('projects:reveal', id)
+    reveal: (id) => call('projects:reveal', id),
+    setColor: (id, color) => call('projects:set-color', id, color),
+    openTerminal: (id) => call('projects:open-terminal', id)
   },
 
   packages: {

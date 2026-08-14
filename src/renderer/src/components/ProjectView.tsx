@@ -6,6 +6,7 @@ import {
   FolderOpen,
   Play,
   RefreshCw,
+  TerminalSquare,
   Trash2
 } from 'lucide-react'
 import type {
@@ -157,6 +158,19 @@ export default function ProjectView({
           disabled={!!detail.error}
         >
           <Play size={15} /> Start Server
+        </button>
+        <button
+          className="btn btn-ghost"
+          title="Open a terminal in this folder"
+          onClick={async () => {
+            try {
+              await window.nsm.projects.openTerminal(project.id)
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : String(err))
+            }
+          }}
+        >
+          <TerminalSquare size={16} />
         </button>
         <button className="btn btn-ghost" title="Open folder" onClick={() => window.nsm.projects.reveal(project.id)}>
           <FolderOpen size={16} />

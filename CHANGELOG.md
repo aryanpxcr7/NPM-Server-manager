@@ -7,6 +7,48 @@ This project uses [semantic versioning](https://semver.org/).
 
 ---
 
+## 0.3.0 — 2026-08-14
+
+### No more terminal window
+
+Starting a server no longer flashes up a console window.
+
+The cause was `detached: true` on the spawn. That flag gives the process *no
+console at all*, so when npm ran the script through `cmd.exe`, Windows had to
+give that a fresh visible one. Servers are now spawned with an invisible console
+instead, which npm's `cmd.exe` quietly inherits.
+
+Detached turned out to be unnecessary for servers to outlive the app — Windows
+does not stop children when their parent exits. So this fixes the window with no
+loss of the 0.2.0 behaviour.
+
+### Closing the app now asks
+
+When servers are running, closing the window offers three choices: **minimise to
+tray** (servers keep running, tray shows a live count), **quit and stop servers**,
+or **quit and leave them running**. With nothing running the window just closes,
+so there is no prompt to dismiss on a normal exit.
+
+The app now lives in the notification area while running, showing how many servers
+are up and letting you reopen or quit from there.
+
+### Right-click a project
+
+Projects in the sidebar have a context menu: open a terminal in the folder, open
+the folder, assign one of eight colours, or remove from the list. Colours show on
+the project icon so a long list stays scannable.
+
+### Open in terminal
+
+A terminal button sits in the project header, and in the context menu. It opens
+Windows Terminal in the project folder, falling back to the classic console.
+
+### Also
+
+- The app finally has a real icon, in the window, taskbar, tray and installer.
+
+---
+
 ## 0.2.0 — 2026-08-14
 
 ### Dev servers now survive closing the app

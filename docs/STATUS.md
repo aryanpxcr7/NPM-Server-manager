@@ -1,7 +1,7 @@
 # Project status
 
 **Last updated:** 2026-08-14
-**Version:** 0.2.0
+**Version:** 0.3.0
 **Source:** https://github.com/aryanpxcr7/NPM-Server-manager
 **Releases:** https://github.com/aryanpxcr7/NPM-SM-Releases  (installers are published here, not to the source repo)
 
@@ -26,7 +26,16 @@ Most recent changes: dev servers now **outlive the app** rather than being kille
 on quit (reversed `docs/DECISIONS.md` §8; read §10 before touching `servers.ts`),
 and the app **checks for its own updates** against the releases repo.
 
-Published: **v0.1.0** (history only, no binary) and **v0.2.0** (current).
+Published: **v0.1.0** (history only), **v0.2.0**, **v0.3.0** (current).
+
+> **BLOCKER: both repos are private.** The releases repo was public when v0.1.0
+> and v0.2.0 were published (verified `private: false`, and an anonymous API call
+> succeeded); it is private now. The in-app updater checks the GitHub API
+> **unauthenticated**, so against a private repo it gets a 404 and silently
+> reports "no update available" — and the installer download URLs will not resolve
+> anonymously either. **The releases repo must be public for updates to work.**
+> Shipping a token in the app is not an option: it would hand every user access to
+> the private repo.
 
 ---
 

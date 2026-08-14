@@ -8,7 +8,31 @@ export interface Project {
   addedAt: number
   /** Package manager inferred from the lockfile present in the folder. */
   packageManager: PackageManager
+  /** Accent for the sidebar entry; null uses the default. */
+  color: ProjectColor | null
 }
+
+/** Named swatches rather than free-form hex, so they stay legible on the dark UI. */
+export type ProjectColor =
+  | 'blue'
+  | 'violet'
+  | 'green'
+  | 'amber'
+  | 'red'
+  | 'pink'
+  | 'cyan'
+  | 'slate'
+
+export const PROJECT_COLORS: ProjectColor[] = [
+  'blue',
+  'violet',
+  'green',
+  'amber',
+  'red',
+  'pink',
+  'cyan',
+  'slate'
+]
 
 export type PackageManager = 'npm' | 'yarn' | 'pnpm'
 

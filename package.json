@@ -1,6 +1,6 @@
 {
   "name": "npm-server-manager",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Discover, control and update your local Node dev servers and projects",
   "main": "./out/main/index.js",
   "author": "aryanpxcr7",
@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && electron-vite build",
+    "icons": "node scripts/make-icons.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "preview": "electron-vite preview",
     "pack": "npm run build && electron-builder --dir",

@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import type { Project } from '@shared/types'
+import type { Project, ProjectColor } from '@shared/types'
 
 interface StoreShape {
   version: 1
@@ -27,7 +27,10 @@ function load(): StoreShape {
     const parsed = JSON.parse(readFileSync(file, 'utf8')) as StoreShape
     cache = {
       version: 1,
-      projects: Array.isArray(parsed.projects) ? parsed.projects : []
+      projects: (Array.isArray(parsed.projects) ? parsed.projects : []).map((p) => ({
+        ...p,
+        color: p.color ?? null
+      }))
     }
   } catch {
     // A corrupt store should not brick the app; keep the bad file for forensics.
@@ -85,6 +88,15 @@ export function renameProject(id: string, name: string): Project | undefined {
   const project = store.projects.find((p) => p.id === id)
   if (!project) return undefined
   project.name = name
+  persist()
+  return project
+}
+
+export function setProjectColor(id: string, color: ProjectColor | null): Project | undefined {
+  const store = load()
+  const project = store.projects.find((p) => p.id === id)
+  if (!project) return undefined
+  project.color = color
   persist()
   return project
 }
