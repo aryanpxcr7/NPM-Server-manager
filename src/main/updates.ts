@@ -68,9 +68,19 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
     return { ...base, error: err instanceof Error ? err.message : 'Network request failed.' }
   }
 
-  // No releases published yet is a normal state, not an error worth surfacing.
-  if (response.status === 404) return base
-  if (response.status === 403) {
+  // A 404 here is indistinguishable from "no releases yet", but since releases
+  // are always published for this app it in practice means the repo is private,
+  // renamed or gone. That once failed silently as "you're up to date", which is
+  // the worst possible way to be wrong -- so it is reported.
+  if (response.status === 404) {
+    return {
+      ...base,
+      error:
+        'Could not read the releases list. The releases repository may be private, ' +
+        'renamed or unavailable.'
+    }
+  }
+  if (response.status === 403 || response.status === 429) {
     return { ...base, error: 'GitHub rate limit reached. Try again later.' }
   }
   if (!response.ok) {

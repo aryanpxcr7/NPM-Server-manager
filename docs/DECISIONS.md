@@ -344,3 +344,26 @@ plain `npm run dist` works without regenerating them.
 
 Changing the artwork means editing the gradient stops or the `BOLT` polygon and
 re-running the script.
+
+---
+
+## 14. A failed update check is reported, not swallowed
+
+**Decided:** 2026-08-14, after it bit us.
+
+`checkForUpdate()` originally treated a 404 from `/releases/latest` as "no
+releases published yet" and returned quietly. When the releases repo was briefly
+made private, every client got a 404 and was told **"you're up to date"** — the
+worst possible way to be wrong, because nothing looks broken.
+
+A 404 is now surfaced as an error. It is technically ambiguous — an empty repo
+returns the same thing — but this app always has releases published, so in
+practice a 404 means the repo is private, renamed or gone, and that is worth
+saying out loud.
+
+The general rule: **the updater may fail quietly on the network, never on
+configuration.** A missing connection is the user's problem and self-correcting;
+a repo that cannot be read is our problem and permanent.
+
+`NPM-SM-Releases` must remain **public** for this reason. The source repo is
+private and can stay that way.

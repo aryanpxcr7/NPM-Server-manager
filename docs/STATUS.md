@@ -28,14 +28,12 @@ and the app **checks for its own updates** against the releases repo.
 
 Published: **v0.1.0** (history only), **v0.2.0**, **v0.3.0** (current).
 
-> **BLOCKER: both repos are private.** The releases repo was public when v0.1.0
-> and v0.2.0 were published (verified `private: false`, and an anonymous API call
-> succeeded); it is private now. The in-app updater checks the GitHub API
-> **unauthenticated**, so against a private repo it gets a 404 and silently
-> reports "no update available" — and the installer download URLs will not resolve
-> anonymously either. **The releases repo must be public for updates to work.**
-> Shipping a token in the app is not an option: it would hand every user access to
-> the private repo.
+**Repo visibility matters and is easy to get wrong.** The source repo
+`NPM-Server-manager` is **private**; the releases repo `NPM-SM-Releases` must stay
+**public**, because the updater reads the GitHub API unauthenticated and the
+installer is downloaded anonymously. It was briefly switched to private on
+2026-08-14, which made the updater report "you're up to date" to everyone. Do not
+ship a token to work around this — it would hand every user access to the repo.
 
 ---
 
@@ -84,6 +82,7 @@ Each of these was checked against real data, not assumed:
 | Reattach on next launch | Seeded run record adopted on startup, shown as `reattached`, log history replayed |
 | Update check | Live against the published repo: as 0.1.0 it offers 0.2.0; as 0.2.0 it reports up to date |
 | Update download | Real 78.3 MB installer fetched in 15.5 s, byte size matched the release asset exactly, file verified as a Windows PE binary |
+| Updater against a private repo | Reproduced the silent failure, then confirmed anonymous 200 + downloadable asset once public |
 | Version comparator | 13/13 cases incl. `0.10.0 > 0.9.0`, prerelease ordering, and unparseable input |
 | `LogTailer` | 8/8 assertions against the real module: live appends, partial lines, CRLF, multi-byte split across reads, truncation resync, flush on stop |
 
