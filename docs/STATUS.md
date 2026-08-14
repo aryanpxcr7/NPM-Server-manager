@@ -1,7 +1,7 @@
 # Project status
 
 **Last updated:** 2026-08-14
-**Version:** 0.3.2
+**Version:** 0.3.3
 **Source:** https://github.com/aryanpxcr7/NPM-Server-manager
 **Releases:** https://github.com/aryanpxcr7/NPM-SM-Releases  (installers are published here, not to the source repo)
 
@@ -27,7 +27,11 @@ on quit (reversed `docs/DECISIONS.md` §8; read §10 before touching `servers.ts
 and the app **checks for its own updates** against the releases repo.
 
 Published: **v0.1.0** (history only), **v0.2.0** (defective — see below),
-**v0.3.0**, **v0.3.1**, **v0.3.2** (current).
+**v0.3.0**, **v0.3.1**, **v0.3.2**, **v0.3.3** (current).
+
+**Releases before 0.3.2 are retired** — installers deleted, notes annotated, and
+`update-policy.json` sets a minimum supported version of 0.3.2 so those builds get
+an undismissable update prompt. See `docs/DECISIONS.md` §17.
 
 **Versioning: step by patch from here** (0.3.2, 0.3.3, …) unless something
 genuinely warrants a minor bump. The 0.1 → 0.2 → 0.3 run was too coarse for
@@ -54,7 +58,7 @@ ship a token to work around this — it would hand every user access to the repo
 3. `npm run build`, then run `electron-builder --win` with
    `--config.directories.output=<dir>`.
 4. Create the GitHub release on `aryanpxcr7/NPM-SM-Releases` and attach the
-   `.exe`, its `.blockmap`, **and `SHA256SUMS.txt`** (the updater verifies against
+   `.exe`, its `.blockmap`, **`SHA256SUMS.txt` and `update-policy.json`** (the updater verifies against
    it; see `docs/DECISIONS.md` §16). Tag as `vX.Y.Z`; the updater strips the leading `v`.
 5. Push the source repo.
 

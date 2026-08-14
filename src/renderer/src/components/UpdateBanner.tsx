@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowDownCircle, CheckCircle2, ExternalLink, RefreshCw, X } from 'lucide-react'
+import { AlertTriangle, ArrowDownCircle, CheckCircle2, ExternalLink, RefreshCw, X } from 'lucide-react'
 import type { UpdateInfo } from '@shared/types'
 
 type Phase = 'idle' | 'downloading' | 'ready' | 'failed'
@@ -47,18 +47,26 @@ export default function UpdateBanner({ info, onDismiss }: Props): React.JSX.Elem
   const pct =
     progress.total > 0 ? Math.min(100, Math.round((progress.received / progress.total) * 100)) : 0
 
+  // A retired version cannot be dismissed: older builds downloaded updates with a
+  // bug that silently corrupted the installer, so "Later" would strand the user.
+  const required = info.mandatory
+
   return (
-    <div className="update-banner">
+    <div className={`update-banner ${required ? 'required' : ''}`}>
       <div className="update-icon">
-        {phase === 'ready' ? <CheckCircle2 size={18} /> : <ArrowDownCircle size={18} />}
+        {phase === 'ready' ? <CheckCircle2 size={18} /> : required ? <AlertTriangle size={18} /> : <ArrowDownCircle size={18} />}
       </div>
 
       <div className="update-text">
         <div className="update-title">
           {phase === 'ready'
             ? `Version ${info.latestVersion} is ready to install`
-            : `Version ${info.latestVersion} is available`}
-          <span className="update-current">you have {info.currentVersion}</span>
+            : required
+              ? `Update required — version ${info.currentVersion} is no longer supported`
+              : `Version ${info.latestVersion} is available`}
+          <span className="update-current">
+            {required ? `update to ${info.latestVersion}` : `you have ${info.currentVersion}`}
+          </span>
         </div>
 
         {phase === 'downloading' && (
@@ -82,7 +90,14 @@ export default function UpdateBanner({ info, onDismiss }: Props): React.JSX.Elem
 
         {phase === 'failed' && error && <div className="update-error">{error}</div>}
 
-        {phase === 'idle' && info.notes && (
+        {phase === 'idle' && required && (
+          <div className="update-notes">
+            This version has a known defect and has been retired. Updating is the only
+            supported path forward.
+          </div>
+        )}
+
+        {phase === 'idle' && !required && info.notes && (
           <div className="update-notes">{firstLines(info.notes, 2)}</div>
         )}
       </div>
@@ -98,9 +113,11 @@ export default function UpdateBanner({ info, onDismiss }: Props): React.JSX.Elem
 
         {phase === 'idle' && (
           <>
-            <button className="btn btn-sm" onClick={onDismiss}>
-              Later
-            </button>
+            {!required && (
+              <button className="btn btn-sm" onClick={onDismiss}>
+                Later
+              </button>
+            )}
             <button className="btn btn-sm btn-primary" onClick={startDownload}>
               Update now
             </button>
@@ -115,9 +132,11 @@ export default function UpdateBanner({ info, onDismiss }: Props): React.JSX.Elem
 
         {phase === 'ready' && (
           <>
-            <button className="btn btn-sm" onClick={onDismiss}>
-              Later
-            </button>
+            {!required && (
+              <button className="btn btn-sm" onClick={onDismiss}>
+                Later
+              </button>
+            )}
             <button className="btn btn-sm btn-primary" onClick={install}>
               Restart &amp; install
             </button>
@@ -135,9 +154,11 @@ export default function UpdateBanner({ info, onDismiss }: Props): React.JSX.Elem
           </>
         )}
 
-        <button className="btn-ghost" style={{ padding: 4 }} onClick={onDismiss} aria-label="Dismiss">
-          <X size={15} />
-        </button>
+        {!required && (
+          <button className="btn-ghost" style={{ padding: 4 }} onClick={onDismiss} aria-label="Dismiss">
+            <X size={15} />
+          </button>
+        )}
       </div>
     </div>
   )

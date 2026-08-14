@@ -159,6 +159,11 @@ export interface UpdateInfo {
   assetName: string | null
   assetSize: number | null
   publishedAt: string | null
+  /**
+   * True when the running version is below the minimum the release policy still
+   * supports. The update prompt then cannot be dismissed.
+   */
+  mandatory: boolean
   /** Set when the check failed; the app carries on regardless. */
   error: string | null
 }

@@ -7,6 +7,27 @@ This project uses [semantic versioning](https://semver.org/).
 
 ---
 
+## 0.3.3 — 2026-08-14
+
+### Older versions are retired
+
+Every release before 0.3.2 shipped a broken in-app updater — either missing
+entirely (0.2.0) or silently corrupting the installer it downloaded (0.3.0,
+0.3.1). Leaving people on those builds is not a neutral choice, because the one
+mechanism meant to get them off is the thing that is broken.
+
+Installers for those versions have been **removed from the releases page**, so
+they can no longer be downloaded. Their release notes remain as a record.
+
+The app also now reads a minimum supported version published with each release.
+Running a build below that floor shows an update prompt that **cannot be
+dismissed** — no *Later*, no close button.
+
+The app is not disabled. A local development tool that bricks itself because it
+cannot reach GitHub would be worse than the problem it is solving.
+
+---
+
 ## 0.3.2 — 2026-08-14
 
 ### Fixed: in-app update produced a corrupt installer

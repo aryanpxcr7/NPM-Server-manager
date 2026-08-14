@@ -453,7 +453,7 @@ Right-click for options`}
           </button>
         )}
 
-        {update?.available && !updateDismissed && (
+        {update?.available && (update.mandatory || !updateDismissed) && (
           <UpdateBanner info={update} onDismiss={() => setUpdateDismissed(true)} />
         )}
       </main>

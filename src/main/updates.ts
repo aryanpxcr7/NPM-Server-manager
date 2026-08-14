@@ -56,6 +56,7 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
     assetName: null,
     assetSize: null,
     publishedAt: null,
+    mandatory: false,
     error: null
   }
 
@@ -93,6 +94,7 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
 
   const latest = normalizeVersion(release.tag_name)
   const asset = pickInstaller(release.assets)
+  const minimum = await minimumSupported(release)
 
   return {
     currentVersion: current,
@@ -104,7 +106,34 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
     assetName: asset?.name ?? null,
     assetSize: asset?.size ?? null,
     publishedAt: release.published_at,
+    // Older builds shipped a download path that silently corrupted the installer,
+    // so leaving people on them is not a neutral choice.
+    mandatory: minimum !== null && isNewer(minimum, current),
     error: null
+  }
+}
+
+/**
+ * Reads the minimum supported version from `update-policy.json` on the latest
+ * release, when one is attached.
+ *
+ * Publishing the floor alongside the release, rather than baking it into the app,
+ * means a version can be retired after the fact -- which is the only option once
+ * a defective build is already installed somewhere.
+ */
+async function minimumSupported(release: GhRelease): Promise<string | null> {
+  const asset = release.assets.find((a) => /^update-policy\.json$/i.test(a.name))
+  if (!asset) return null
+  try {
+    const res = await fetch(asset.browser_download_url, {
+      headers: { 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(15_000)
+    })
+    if (!res.ok) return null
+    const policy = (await res.json()) as { minimumVersion?: unknown }
+    return typeof policy.minimumVersion === 'string' ? normalizeVersion(policy.minimumVersion) : null
+  } catch {
+    return null
   }
 }
 

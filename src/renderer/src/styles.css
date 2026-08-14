@@ -1216,3 +1216,13 @@ table.pkg-table {
   color: var(--red);
   background: var(--red-soft);
 }
+
+.update-banner.required {
+  border-top-color: var(--red);
+  background: linear-gradient(180deg, rgba(248, 81, 73, 0.1), var(--bg-raised));
+}
+
+.update-banner.required .update-icon {
+  background: var(--red-soft);
+  color: var(--red);
+}

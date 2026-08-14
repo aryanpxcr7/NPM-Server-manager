@@ -448,3 +448,40 @@ right length.
 
 Publishing `SHA256SUMS.txt` is therefore **part of the release procedure**, not
 optional. A release without it degrades to the structural checks only.
+
+---
+
+## 17. Retiring a version is a server-side decision, published with the release
+
+**Decided:** 2026-08-14.
+
+Two mechanisms, because "stop people using old versions" has two halves:
+
+**Stopping downloads.** Installers for retired versions are deleted from their
+GitHub release; the notes stay, carrying a caution explaining why. History is
+preserved, the binary is not.
+
+**Stopping use.** Each release publishes `update-policy.json`:
+
+```json
+{ "minimumVersion": "0.3.2" }
+```
+
+The updater reads it and sets `mandatory` when the running build is below the
+floor. The prompt then has no *Later* and no close button.
+
+**The floor lives with the release, not in the app.** A version can only be
+retired *after* it is already installed on someone's machine — which is exactly
+when a compile-time constant is useless. Publishing the floor means the decision
+can be made retroactively, which is the only time it is ever needed.
+
+**A retired version is nagged, not disabled.** It was tempting to refuse to run,
+since 0.3.0 and 0.3.1 cannot even update themselves correctly. But this is a local
+development tool, and its own update check depends on reaching GitHub. Bricking
+someone's server manager because their network is down — or because the releases
+repo moved — would be a worse failure than the one being prevented. The banner is
+unmissable and permanent; that is enough.
+
+**Why 0.3.2 is the floor:** it is the first release whose downloader produces a
+correct file. 0.2.0 shipped with no updater at all, and 0.3.0/0.3.1 silently
+corrupted what they downloaded, so every earlier build is unable to repair itself.
