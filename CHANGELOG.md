@@ -7,6 +7,26 @@ This project uses [semantic versioning](https://semver.org/).
 
 ---
 
+## 0.3.5 — 2026-08-14
+
+### No more menu bar on Alt
+
+Pressing Alt revealed a File / Edit / View / Window / Help bar — Electron's
+default template, which `autoHideMenuBar` only hides until Alt is pressed. The app
+has no menu commands of its own, so the menu is now removed outright.
+
+### The quit prompt is part of the app
+
+Closing with servers running used to raise a Windows message box. It is now an
+in-app dialog matching the rest of the UI — and it lists **which** servers are
+running, with their project, script and port. The native dialog could only state a
+count, which is not much to decide on.
+
+The OS dialog survives as a fallback for the case where the window cannot draw it,
+so a wedged renderer can never leave a window that refuses to close.
+
+---
+
 ## 0.3.4 — 2026-08-14
 
 ### Update prompt on launch

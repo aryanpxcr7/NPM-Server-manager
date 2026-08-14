@@ -77,6 +77,12 @@ export interface NsmApi {
     onProgress: (handler: (progress: UpdateProgress) => void) => () => void
   }
 
+  app: {
+    /** Fires when the window is closing with servers still running. */
+    onConfirmQuit: (handler: (info: { liveRuns: number }) => void) => () => void
+    quitChoice: (choice: 'stop' | 'leave' | 'cancel') => Promise<void>
+  }
+
   openExternal: (url: string) => Promise<boolean>
 }
 

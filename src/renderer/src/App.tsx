@@ -20,6 +20,7 @@ import type { ToolchainInfo } from '@shared/api'
 import LogPanel from './components/LogPanel'
 import ProjectContextMenu, { type MenuTarget } from './components/ProjectContextMenu'
 import ProjectView from './components/ProjectView'
+import QuitDialog from './components/QuitDialog'
 import ServersView from './components/ServersView'
 import UpdateBanner from './components/UpdateBanner'
 import UpdateDialog from './components/UpdateDialog'
@@ -50,6 +51,7 @@ function Shell(): React.JSX.Element {
   const [menu, setMenu] = useState<MenuTarget | null>(null)
   const [updatePrompted, setUpdatePrompted] = useState(false)
   const [updateAutoStart, setUpdateAutoStart] = useState(false)
+  const [quitPrompt, setQuitPrompt] = useState<{ liveRuns: number } | null>(null)
 
   const errorRef = useRef(toast.error)
   errorRef.current = toast.error
@@ -134,6 +136,9 @@ function Shell(): React.JSX.Element {
       document.removeEventListener('visibilitychange', tick)
     }
   }, [scan])
+
+  // The main process defers the quit decision to the app's own dialog.
+  useEffect(() => window.nsm.app.onConfirmQuit(setQuitPrompt), [])
 
   // Live output and status from the main process.
   useEffect(() => {
@@ -485,6 +490,17 @@ Right-click for options`}
             setUpdatePrompted(true)
             setUpdateDismissed(false)
             setUpdateAutoStart(true)
+          }}
+        />
+      )}
+
+      {quitPrompt && (
+        <QuitDialog
+          liveRuns={quitPrompt.liveRuns}
+          runs={runs}
+          onChoose={(choice) => {
+            setQuitPrompt(null)
+            void window.nsm.app.quitChoice(choice)
           }}
         />
       )}

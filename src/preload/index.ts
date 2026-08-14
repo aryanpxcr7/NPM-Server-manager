@@ -65,6 +65,15 @@ const api: NsmApi = {
     }
   },
 
+  app: {
+    onConfirmQuit: (handler) => {
+      const listener = (_e: unknown, info: { liveRuns: number }): void => handler(info)
+      ipcRenderer.on('app:confirm-quit', listener)
+      return () => ipcRenderer.off('app:confirm-quit', listener)
+    },
+    quitChoice: (choice) => call('app:quit-choice', choice)
+  },
+
   openExternal: (url) => call('shell:open-external', url)
 }
 

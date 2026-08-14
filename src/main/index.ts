@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, shell } from 'electron'
+import { app, BrowserWindow, dialog, Menu, shell } from 'electron'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { registerIpc } from './ipc'
@@ -7,6 +7,9 @@ import { detachAll, initServers, liveRunCount, stopAll } from './servers'
 let mainWindow: BrowserWindow | null = null
 /** Set once the user has chosen to quit, so the close handler stops intercepting. */
 let quitting = false
+/** True while the in-app quit dialog is waiting for an answer. */
+let awaitingQuitChoice = false
+let quitFallbackTimer: NodeJS.Timeout | null = null
 
 // A development run gets its own data directory. Two consequences, both wanted:
 // the single-instance lock no longer collides with an installed copy (dev used to
@@ -23,6 +26,10 @@ function assetPath(file: string): string {
   if (app.isPackaged && existsSync(packaged)) return packaged
   return path.join(__dirname, '../../build', file)
 }
+
+// autoHideMenuBar only hides the menu until Alt is pressed. The app has no menu
+// commands of its own, so the default template is removed outright.
+Menu.setApplicationMenu(null)
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -53,7 +60,18 @@ function createWindow(): void {
     if (live === 0) return // nothing at stake; let it close normally
 
     event.preventDefault()
-    void askOnClose(live)
+    if (awaitingQuitChoice) return
+    awaitingQuitChoice = true
+
+    mainWindow?.webContents.send('app:confirm-quit', { liveRuns: live })
+
+    // If the renderer cannot answer -- crashed, or still loading -- fall back to
+    // the OS dialog rather than leaving a window that refuses to close.
+    quitFallbackTimer = setTimeout(() => {
+      if (!awaitingQuitChoice) return
+      awaitingQuitChoice = false
+      void askOnCloseNative(live)
+    }, 6000)
   })
 
   mainWindow.on('closed', () => {
@@ -74,7 +92,22 @@ function createWindow(): void {
   }
 }
 
-async function askOnClose(live: number): Promise<void> {
+/** Applies the choice made in the in-app dialog. */
+export async function resolveQuitChoice(choice: 'stop' | 'leave' | 'cancel'): Promise<void> {
+  if (quitFallbackTimer) {
+    clearTimeout(quitFallbackTimer)
+    quitFallbackTimer = null
+  }
+  awaitingQuitChoice = false
+  if (choice === 'cancel') return
+
+  quitting = true
+  if (choice === 'stop') await stopAll()
+  app.quit()
+}
+
+/** Only used when the renderer is unable to present the in-app dialog. */
+async function askOnCloseNative(live: number): Promise<void> {
   if (!mainWindow) return
 
   const plural = live === 1 ? 'server' : 'servers'
@@ -117,7 +150,7 @@ if (!app.requestSingleInstanceLock()) {
     // Load the record of servers left running by a previous session; the first
     // port scan validates them against live processes and reattaches.
     initServers()
-    registerIpc(() => mainWindow)
+    registerIpc(() => mainWindow, resolveQuitChoice)
     createWindow()
 
     app.on('activate', () => {

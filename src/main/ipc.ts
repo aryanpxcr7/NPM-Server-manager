@@ -51,7 +51,17 @@ function requireString(value: unknown, label: string): string {
   return value
 }
 
-export function registerIpc(getWindow: () => BrowserWindow | null): void {
+export function registerIpc(
+  getWindow: () => BrowserWindow | null,
+  onQuitChoice: (choice: 'stop' | 'leave' | 'cancel') => Promise<void>
+): void {
+  handle('app:quit-choice', (choice: unknown) => {
+    if (choice !== 'stop' && choice !== 'leave' && choice !== 'cancel') {
+      throw new Error('Unknown quit choice.')
+    }
+    return onQuitChoice(choice)
+  })
+
   handle('toolchain:info', () => resolveToolchain())
 
   // --- Projects -----------------------------------------------------------
