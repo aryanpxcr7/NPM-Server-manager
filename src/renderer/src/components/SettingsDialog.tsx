@@ -7,6 +7,7 @@ import {
   comboKeys,
   comboOf,
   comboProblem,
+  isChordInProgress,
   resolveBindings,
   SHORTCUTS,
   type ShortcutId
@@ -116,8 +117,10 @@ function ShortcutTab(): React.JSX.Element {
         return
       }
       const combo = comboOf(e)
-      // Modifiers arrive as their own keydown events; wait for the real key.
-      if (/^(ctrl|alt|shift|meta)(\+(ctrl|alt|shift|meta))*$/.test(combo)) return
+      // Ctrl arrives as its own keydown before the key it modifies. Waiting for
+      // the real key is the whole point: rejecting the chord as it is being
+      // pressed reads as "rebinding is broken".
+      if (isChordInProgress(combo)) return
 
       const why = comboProblem(combo)
       if (why) {

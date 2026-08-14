@@ -75,7 +75,24 @@ export function comboOf(e: KeyboardEvent): string {
   return parts.join('+')
 }
 
-const MODIFIER_KEYS = new Set(['control', 'shift', 'alt', 'meta', 'os'])
+/**
+ * Key *names* as `KeyboardEvent.key` reports them, which is not what the combo
+ * prefixes are called: holding Ctrl produces `key === 'Control'`, so the combo for
+ * that event is `ctrl+control`.
+ */
+const MODIFIER_KEYS = new Set(['control', 'shift', 'alt', 'altgraph', 'meta', 'os'])
+
+/**
+ * True while a chord is still being held down -- the pressed key is itself a
+ * modifier, so the combo is incomplete.
+ *
+ * Recording must ignore these rather than reject them: every real chord starts
+ * with one or more of them, and complaining at that point tells the user their
+ * perfectly good shortcut was refused.
+ */
+export function isChordInProgress(combo: string): boolean {
+  return MODIFIER_KEYS.has(combo.split('+').pop() ?? '')
+}
 
 /**
  * Why a combo cannot be bound, or null when it can.
