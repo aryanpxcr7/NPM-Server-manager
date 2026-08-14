@@ -45,6 +45,8 @@ const api: NsmApi = {
     start: (projectId, script) => call('servers:start', projectId, script),
     stop: (runId) => call('servers:stop', runId),
     restart: (runId) => call('servers:restart', runId),
+    restartExternal: (pid, projectId, script) =>
+      call('servers:restart-external', pid, projectId, script),
     kill: (pid) => call('servers:kill', pid),
     clearFinished: () => call('servers:clear-finished'),
 

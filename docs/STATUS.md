@@ -119,6 +119,7 @@ Each of these was checked against real data, not assumed:
 | The 0.3.6 release itself | Anonymous check of what a user's app sees: `releases/latest` returns tag `v0.3.6`, not a draft, with all four assets. The installer downloaded anonymously is 82,130,032 bytes, starts `MZ`, and its SHA-256 matches the published `SHA256SUMS.txt`. Before upload, the packaged `app.asar` was grepped for markers of all four of the day's changes, so it cannot be a stale bundle like v0.2.0 |
 | node-pty under this Electron | Loaded `@lydell/node-pty` in Electron 33, spawned a real ConPTY, wrote `echo`, got the output back, and killed it. Kill behaviour measured both ways: `pty.kill()` took 145 ms and took a grandchild `node` with it; `taskkill /T /F` took 1.1 s for the same result. This was checked *before* anything was built on it |
 | The integrated terminal, driven for real | 28 checks over three passes against the built app, driven over CDP with real key events (`Input.dispatchKeyEvent`), reading back the text on screen. Pass 1 (12): the panel opens a session by itself, PowerShell draws its prompt, typing `echo NSM-PROBE-4242` comes back echoed, output survives switching to Logs and back, the + button opens a second terminal, closing one tab leaves the other running, and Ctrl+` hides and restores the dock *from inside the shell*. Pass 2 (9): opened from a project's toolbar, the session's cwd is the project folder, the prompt shows it, `node -e "console.log(process.cwd())"` prints `…\VibeCoding Projects\NPM Server manager` — a path with a space, which has broken this codebase before — and typing `exit` marks the tab exited and says so on screen. Pass 3 (7): three shells detected, the picker offers them, and a Git Bash session opens and draws its MINGW64 prompt |
+| Control over external servers | 21 checks against a fixture started the way a user's terminal starts one (`Start-Process` → `npm run dev`, in a folder whose name contains a space), driven over CDP. The port holder is detected, its `dev` script is recovered by walking npm → cmd.exe → node, it is *not* restartable until the folder is registered as a project and is immediately afterwards, it appears as a chip on the project page, and the Start dialog greys out the script it is already running. *Restart here* stopped pid 16544 and brought the server back on the same port as managed pid 37028 with its output captured; the old tree — node, its `cmd.exe` shim and the npm parent — was entirely gone. Stopping one from the project page freed the port and removed the chip |
 | Terminals do not outlive the app | Both driven runs ended with a graceful quit; every shell pid was gone afterwards, with no stray `powershell`/`cmd`/`bash` left behind |
 | Log link parser | 13/13 cases through the real `lib/links.ts` (esbuild → node): Vite/Next banners, bare `localhost:8080`, trailing `.` and `)`, ANSI-wrapped URLs, `0.0.0.0` → `localhost`, `[::1]`, two URLs on one line, and non-loopback links correctly *not* auto-opened |
 
@@ -168,9 +169,10 @@ as working.
   actually run. Scan → plan → preview dialog is verified; pressing the final
   confirm button is not. Testing this mutates a real project's `node_modules`, so
   it needs either a throwaway fixture project or the user's go-ahead.
-- **Stop / restart via the UI buttons.** The underlying `taskkill /T /F` works (it
-  was used to clean up a test server), but the buttons themselves were never
-  clicked.
+- **Stop / restart of a *managed* run via its own buttons.** The external server's
+  stop chip and *Restart here* have now been clicked for real (see the table
+  above), and stopping a managed run has been driven through the IPC, but the
+  managed run's own stop and restart buttons still have not been pressed.
 - **`npm install` button** shown when `node_modules` is missing.
 - **Multi-port servers**, and the `+N more ports` badge.
 - **The corrupt-store recovery path** in `store.ts` (renaming a bad
@@ -190,6 +192,11 @@ state.
 
 Either honour the field or remove it — the current half-implementation is worse
 than either. This is the most user-visible gap.
+
+It is also what keeps *Restart here* off yarn and pnpm servers: they are detected
+and stoppable, but only an `npm run <script>` ancestor makes one restartable, since
+restarting means running the script again and this app would run it with npm. See
+`docs/DECISIONS.md` §20.
 
 ### 2. `electron-updater` is an unused dependency
 Still listed in `dependencies`, still never imported. Update checking was built
@@ -248,8 +255,9 @@ on next launch. Consequences:
   running `npm-cli.js` with the same script. A process that fails the check is
   simply not adopted; it will still appear as an *external* server.
 - If npm exits but its child keeps the port, the run retires while the port stays
-  bound. The scanner then shows it as external, which is stoppable but not
-  restartable.
+  bound. The scanner then shows it as external — still stoppable, and restartable
+  too as long as the `npm run <script>` that produced it is still visible somewhere
+  in the process tree. See `docs/DECISIONS.md` §20.
 
 ---
 

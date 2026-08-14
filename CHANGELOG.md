@@ -30,6 +30,26 @@ bars all work, because the shell knows it is talking to a terminal.
   makes sense. Every other Ctrl key belongs to the shell — Ctrl+L clears its
   screen, Ctrl+R searches its history — so only Ctrl+` is taken.
 
+### Control over servers you didn't start here
+
+Servers found on your machine — started in a terminal, by an IDE, or by a previous
+session — could always be stopped from the Servers page. Now:
+
+- **They show up on the project page too.** Open a project and anything of its own
+  that is listening appears as an amber chip beside the managed ones, with its
+  port, a stop button and a restart button. Opening a project no longer looks
+  idle when its dev server is running in a terminal behind you.
+- **Restart here** takes one over: it stops the server and runs the same npm
+  script from the app, so it comes back with live output, a stop button and a run
+  record that survives a relaunch. The script is worked out by walking up the
+  process tree to the `npm run …` that started it, then checked against the
+  project's `package.json` before anything runs.
+- The Start Server dialog now greys out a script that is already listening,
+  whoever started it, instead of letting you start a second one that cannot bind.
+
+Yarn and pnpm servers are detected and stoppable but not restartable — restarting
+means running the script again, and this app would run it with npm.
+
 ### The bottom panel has tabs now
 
 *Logs* and *Terminal*, and it can be **dragged taller or shorter** by its top edge;

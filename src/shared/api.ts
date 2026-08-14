@@ -63,6 +63,11 @@ export interface NsmApi {
     start: (projectId: string, script: string) => Promise<ManagedRun>
     stop: (runId: string) => Promise<void>
     restart: (runId: string) => Promise<ManagedRun>
+    /**
+     * Stops a server this app did not start and runs its npm script again, so it
+     * comes back as a managed run. Only offered when `restartable` is set.
+     */
+    restartExternal: (pid: number, projectId: string, script: string) => Promise<ManagedRun>
     kill: (pid: number) => Promise<void>
     clearFinished: () => Promise<boolean>
     onLog: (handler: (line: ServerLogLine) => void) => () => void

@@ -13,6 +13,7 @@ import {
   Trash2
 } from 'lucide-react'
 import type {
+  DetectedServer,
   ManagedRun,
   PackageScanResult,
   ProjectDetail,
@@ -27,6 +28,8 @@ import { useToast } from './Toasts'
 interface Props {
   detail: ProjectDetail
   runs: ManagedRun[]
+  /** Everything the port scanner found, so servers started elsewhere show here too. */
+  servers: DetectedServer[]
   /** Owned by App so the Ctrl+Enter shortcut can open the picker as well. */
   startPickerOpen: boolean
   onStartPickerChange: (open: boolean) => void
@@ -37,11 +40,14 @@ interface Props {
   onRefreshDetail: () => void
   /** Opens the app's own terminal in this folder, in the bottom dock. */
   onOpenTerminalPanel: () => void
+  onStopExternal: (server: DetectedServer) => void
+  onRestartExternal: (server: DetectedServer) => void
 }
 
 export default function ProjectView({
   detail,
   runs,
+  servers,
   startPickerOpen,
   onStartPickerChange,
   onStart,
@@ -49,7 +55,9 @@ export default function ProjectView({
   onRestart,
   onRemove,
   onRefreshDetail,
-  onOpenTerminalPanel
+  onOpenTerminalPanel,
+  onStopExternal,
+  onRestartExternal
 }: Props): React.JSX.Element {
   const toast = useToast()
   const { project } = detail
@@ -68,7 +76,26 @@ export default function ProjectView({
       ),
     [runs, project.id]
   )
-  const runningScripts = useMemo(() => liveRuns.map((r) => r.script), [liveRuns])
+  /**
+   * Servers for this project that the app did not start -- run from a terminal,
+   * an IDE, or left over from a previous session it could not adopt. They belong
+   * on this page as much as the managed ones: the whole point of opening a
+   * project is to see what it is doing and be able to stop it.
+   */
+  const externals = useMemo(
+    () => servers.filter((s) => !s.managed && s.projectId === project.id),
+    [servers, project.id]
+  )
+
+  // A script already listening on a port cannot be started again, whoever
+  // started it, so the Start dialog greys both kinds out.
+  const runningScripts = useMemo(
+    () => [
+      ...liveRuns.map((r) => r.script),
+      ...externals.map((s) => s.script).filter((s): s is string => s !== null)
+    ],
+    [liveRuns, externals]
+  )
 
   const refreshPackages = useCallback(async () => {
     setScanning(true)
@@ -188,6 +215,43 @@ export default function ProjectView({
               className="btn btn-sm btn-ghost run-chip-stop"
               title={`Stop ${run.script}`}
               onClick={() => onStop(run.runId)}
+            >
+              <Square size={13} />
+            </button>
+          </div>
+        ))}
+
+        {externals.map((server) => (
+          <div
+            key={server.pid}
+            className="run-chip run-chip-external"
+            title={`Started outside this app — ${server.commandLine ?? server.processName}`}
+          >
+            <span className="status-dot running" />
+            <span className="run-chip-script">{server.script ?? server.processName}</span>
+            <span className="tag tag-external">external</span>
+            {server.ports.length > 0 && (
+              <button
+                className="run-chip-port"
+                title={`Open http://localhost:${server.ports[0]}`}
+                onClick={() => window.nsm.openExternal(`http://localhost:${server.ports[0]}`)}
+              >
+                :{server.ports[0]}
+              </button>
+            )}
+            {server.restartable && (
+              <button
+                className="btn btn-sm btn-ghost"
+                title={`Stop it and run "npm run ${server.script}" here, so this app manages it`}
+                onClick={() => onRestartExternal(server)}
+              >
+                <RotateCw size={13} />
+              </button>
+            )}
+            <button
+              className="btn btn-sm btn-ghost run-chip-stop"
+              title={`Stop this process (PID ${server.pid})`}
+              onClick={() => onStopExternal(server)}
             >
               <Square size={13} />
             </button>

@@ -1520,6 +1520,21 @@ table.pkg-table {
   font-weight: 600;
 }
 
+/* Started elsewhere: amber, the same signal the Servers page uses for external. */
+.run-chip-external {
+  background: var(--amber-soft);
+  border-color: var(--amber-line);
+}
+
+.run-chip-external .run-chip-script {
+  color: var(--amber-text);
+}
+
+.run-chip-external .status-dot.running {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-soft);
+}
+
 .run-chip-port {
   font-family: var(--mono);
   font-size: 12px;

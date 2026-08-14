@@ -97,8 +97,17 @@ export interface DetectedServer {
   managed: boolean
   /** Identifies the owning run, so the UI can act on it without re-deriving. */
   runId: string | null
-  /** Script name for managed servers, e.g. "dev". */
+  /**
+   * Script name, e.g. "dev". Known for managed servers, and for external ones
+   * whose process tree still shows the `npm run <script>` that started them.
+   */
   script: string | null
+  /**
+   * True when an *external* server can be restarted: it belongs to a saved
+   * project and we know which npm script produced it, so stopping it and
+   * starting that script again takes it over as a managed run.
+   */
+  restartable: boolean
   startedAt: number | null
 }
 

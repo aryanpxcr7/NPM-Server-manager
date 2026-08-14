@@ -8,6 +8,8 @@ interface Props {
   onRefresh: () => void
   onStopPid: (server: DetectedServer) => void
   onRestartRun: (runId: string) => void
+  /** Restarts a server this app did not start, by re-running its npm script. */
+  onRestartExternal: (server: DetectedServer) => void
   onOpenProject: (projectId: string) => void
   onOpenFolder: (projectId: string) => void
 }
@@ -19,6 +21,7 @@ export default function ServersView({
   onRefresh,
   onStopPid,
   onRestartRun,
+  onRestartExternal,
   onOpenProject,
   onOpenFolder
 }: Props): React.JSX.Element {
@@ -68,6 +71,7 @@ export default function ServersView({
               runs={runs}
               onStopPid={onStopPid}
               onRestartRun={onRestartRun}
+              onRestartExternal={onRestartExternal}
               onOpenProject={onOpenProject}
               onOpenFolder={onOpenFolder}
             />
@@ -80,6 +84,7 @@ export default function ServersView({
               runs={runs}
               onStopPid={onStopPid}
               onRestartRun={onRestartRun}
+              onRestartExternal={onRestartExternal}
               onOpenProject={onOpenProject}
               onOpenFolder={onOpenFolder}
             />
@@ -97,6 +102,7 @@ function ServerGroup({
   runs,
   onStopPid,
   onRestartRun,
+  onRestartExternal,
   onOpenProject,
   onOpenFolder
 }: {
@@ -106,6 +112,7 @@ function ServerGroup({
   runs: ManagedRun[]
   onStopPid: (server: DetectedServer) => void
   onRestartRun: (runId: string) => void
+  onRestartExternal: (server: DetectedServer) => void
   onOpenProject: (projectId: string) => void
   onOpenFolder: (projectId: string) => void
 }): React.JSX.Element {
@@ -176,10 +183,22 @@ function ServerGroup({
                   <ExternalLink size={14} />
                 </button>
               )}
-              {run && (
+              {run ? (
                 <button className="btn btn-sm" onClick={() => onRestartRun(run.runId)}>
                   <RotateCw size={13} /> Restart
                 </button>
+              ) : (
+                server.restartable && (
+                  <button
+                    className="btn btn-sm"
+                    // Says what it will do, because it is not quite a restart:
+                    // the server comes back owned by this app, with a log.
+                    title={`Stop it and run "npm run ${server.script}" in ${server.projectName}, so this app manages it from now on`}
+                    onClick={() => onRestartExternal(server)}
+                  >
+                    <RotateCw size={13} /> Restart here
+                  </button>
+                )
               )}
               <button className="btn btn-sm btn-danger" onClick={() => onStopPid(server)}>
                 <Square size={13} /> Stop

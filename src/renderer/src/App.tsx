@@ -338,6 +338,30 @@ function Shell(): React.JSX.Element {
     }
   }
 
+  /**
+   * Takes over a server started outside the app: stops it, then runs the same
+   * npm script here so it comes back with a log and a stop button.
+   */
+  const restartExternal = async (server: DetectedServer): Promise<void> => {
+    if (!server.projectId || !server.script) return
+    try {
+      const run = await window.nsm.servers.restartExternal(
+        server.pid,
+        server.projectId,
+        server.script
+      )
+      setRuns(await window.nsm.servers.runs())
+      setActiveRunId(run.runId)
+      setDockTab('logs')
+      setDockOpen(true)
+      toast.success(`"${run.script}" is now managed here.`)
+      void scan()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err))
+      void scan()
+    }
+  }
+
   const restartRun = async (runId: string): Promise<void> => {
     try {
       const run = await window.nsm.servers.restart(runId)
@@ -719,6 +743,7 @@ Right-click for options`}
                 onRefresh={() => scan(true)}
                 onStopPid={stopServer}
                 onRestartRun={restartRun}
+                onRestartExternal={restartExternal}
                 onOpenProject={(id) => setView({ kind: 'project', id })}
                 onOpenFolder={(id) => void window.nsm.projects.reveal(id)}
               />
@@ -728,6 +753,7 @@ Right-click for options`}
           <ProjectView
             detail={detail}
             runs={runs}
+            servers={servers}
             startPickerOpen={startPickerOpen}
             onStartPickerChange={setStartPickerOpen}
             onStart={startServer}
@@ -736,6 +762,8 @@ Right-click for options`}
             onRemove={removeProject}
             onRefreshDetail={() => void loadDetail(view.id)}
             onOpenTerminalPanel={openTerminalHere}
+            onStopExternal={stopServer}
+            onRestartExternal={restartExternal}
           />
         ) : (
           <div className="content">

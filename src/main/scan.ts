@@ -79,17 +79,23 @@ export async function scanServers(): Promise<DetectedServer[]> {
     // project were removed while its server kept running.
     const match = run ? null : matchProject(proc.commandLine, cwd, projects)
 
+    // For anything we did not start, the npm script is recovered from the
+    // process tree, which is what makes an external server restartable.
+    const script = run?.script ?? (isManaged ? null : findNpmScript(pid, byPid))
+    const projectId = run?.projectId ?? match?.id ?? null
+
     servers.push({
       pid,
       processName: proc.name,
       ports: [...ports].sort((a, b) => a - b),
       commandLine: proc.commandLine,
       cwd,
-      projectId: run?.projectId ?? match?.id ?? null,
+      projectId,
       projectName: run?.projectName ?? match?.name ?? null,
       managed: isManaged,
       runId: run?.runId ?? null,
-      script: run?.script ?? null,
+      script,
+      restartable: !isManaged && projectId !== null && script !== null,
       startedAt: run?.startedAt ?? null
     })
   }
@@ -114,6 +120,7 @@ export async function scanServers(): Promise<DetectedServer[]> {
       managed: true,
       runId: run.runId,
       script: run.script,
+      restartable: false,
       startedAt: run.startedAt
     })
   }
@@ -208,6 +215,49 @@ async function listProcessesFallback(): Promise<ProcessInfo[]> {
     processes.push({ pid, name, commandLine: null, parentPid: null })
   }
   return processes
+}
+
+/**
+ * The `npm run <script>` that started a process, read off its own command line.
+ *
+ * Two shapes reach us. npm spawns scripts as `node …\npm-cli.js run dev`, which
+ * is what the manager process itself looks like; the `npm run dev` form turns up
+ * when the tree passes through a `cmd.exe /c` wrapper.
+ *
+ * **Only npm is recognised, deliberately.** A yarn or pnpm project would be
+ * restarted with npm — this app runs npm unconditionally (see `docs/STATUS.md`
+ * gap #1) — and quietly using the wrong package manager on someone's lockfile is
+ * worse than not offering the button. Those servers stay stoppable, not
+ * restartable.
+ */
+function parseNpmScript(commandLine: string): string | null {
+  const match =
+    /\bnpm-cli\.js"?\s+(?:run|run-script)\s+(?:"([^"]+)"|(\S+))/i.exec(commandLine) ??
+    /\bnpm(?:\.cmd)?"?\s+(?:run|run-script)\s+(?:"([^"]+)"|(\S+))/i.exec(commandLine)
+  if (!match) return null
+
+  const script = match[1] ?? match[2] ?? ''
+  // Anything after the script name is an npm flag or a `--` passthrough, not
+  // part of the name; and a name has to look like one before it is offered.
+  return /^[A-Za-z0-9_.:@\-/]+$/.test(script) ? script : null
+}
+
+/**
+ * Walks up from a listening process looking for the npm invocation that started
+ * it. A dev server is typically a grandchild — npm → cmd.exe → vite — so the
+ * command line of the process holding the port says nothing about the script.
+ */
+function findNpmScript(pid: number, byPid: Map<number, ProcessInfo>): string | null {
+  let current = byPid.get(pid)
+
+  // Bounded rather than "until the root": parent pids are reused by Windows, so a
+  // corrupt chain could otherwise loop, and no real npm tree is this deep.
+  for (let depth = 0; current && depth < 8; depth++) {
+    const script = current.commandLine ? parseNpmScript(current.commandLine) : null
+    if (script) return script
+    current = current.parentPid === null ? undefined : byPid.get(current.parentPid)
+  }
+  return null
 }
 
 /** Runtimes whose own path in argv[0] tells us nothing about the project. */

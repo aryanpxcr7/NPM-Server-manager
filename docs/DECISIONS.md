@@ -587,3 +587,51 @@ history, Ctrl+C interrupts. Only the combo that toggles the panel (Ctrl+` by
 default) is intercepted, because a panel you cannot close from the keyboard is a
 trap. Ctrl+C copies instead of interrupting when — and only when — there is a
 selection, which is what every Windows terminal does.
+
+---
+
+## 20. An external server is restarted by re-running its script, not by replaying its command line
+
+**Decided:** 2026-08-14.
+
+Servers this app did not start have always been stoppable — `taskkill /T /F` needs
+nothing but a pid. Restarting them needs to know *what to run again*, and there
+were two ways to find out.
+
+**Rejected: re-run the command line we found.** The process table hands us the
+exact command line, so restarting looks like a matter of replaying it. It is not.
+Reconstructing argv from a Windows command-line string is the quoting problem in
+reverse, and getting it wrong on a path like `C:\Program Files\…` means running
+something other than what was there before. It would also need the working
+directory, which is only ever *guessed* (`guessCwd`), and would reproduce the same
+unmanaged, unlogged process we started with.
+
+**Chosen: recover the npm script and start it as a managed run.** `scan.ts` walks
+up the process tree from the port holder looking for `npm-cli.js run <script>` — a
+dev server is typically a grandchild (npm → cmd.exe → vite), so the listening
+process's own command line says nothing. With a script name and a project match,
+restarting is exactly `stopServer` + `startServer`, code that already exists and
+is already trusted with paths.
+
+The result is deliberately better than a restart: the server comes back **owned by
+the app**, with streaming logs, a stop button and a run record that survives a
+relaunch. The button says *Restart here* rather than *Restart* for that reason.
+
+**The recovered name is validated before it runs.** It came off a process listing,
+which is not a trusted source, so `restartExternal` checks it against the keys in
+the project's own `package.json` and refuses if it is not there. This is the same
+principle as §2: never let a string from outside reach an execution path
+unchecked, even when there is no shell involved.
+
+**Only npm is recognised, and that is a real limitation, not an oversight.** Yarn
+and pnpm servers are detected and stoppable, but not restartable, because this app
+runs npm unconditionally (`docs/STATUS.md` gap #1) and restarting a pnpm project
+with npm can rewrite its lockfile state. A greyed-out button is a much smaller
+problem than that. Fixing gap #1 is what would unlock it.
+
+**The whole tree goes, not just the port holder.** Killing the listening process
+with `/T` was measured to take its `cmd.exe` shim and the npm parent with it — all
+three were gone afterwards — so there is no orphaned npm left behind. The new run
+then waits for the old pid to actually disappear before starting, because
+otherwise the replacement races the old process for the port and dies on
+`EADDRINUSE` in a way that looks like the app's fault.

@@ -6,6 +6,7 @@ import path from 'node:path'
 import { app } from 'electron'
 import type { ManagedRun, ServerLogLine } from '@shared/types'
 import { closeLogFd, LogTailer, openLogFd } from './logtail'
+import { readPackageJson } from './projects'
 import { getProject, normalizePath } from './store'
 import { resolveToolchain } from './toolchain'
 
@@ -390,6 +391,64 @@ export async function killPid(pid: number): Promise<void> {
   if (!Number.isInteger(pid) || pid <= 0) throw new Error('Invalid process id.')
   if (pid === process.pid) throw new Error('Refusing to stop NPM Server Manager itself.')
   await killTree(pid)
+}
+
+/**
+ * Takes over a server this app did not start: kills its tree, then runs the same
+ * npm script as a managed run.
+ *
+ * The result is deliberately not a like-for-like restart. A server started in a
+ * terminal has no log we can read and no handle we can hold, so re-running the
+ * script the scanner found is both the only thing we *can* do and the more useful
+ * one — afterwards it has live output, a stop button and it survives a restart of
+ * the app like any other run.
+ */
+export async function restartExternal(
+  pid: number,
+  projectId: string,
+  script: string
+): Promise<ManagedRun> {
+  if (!Number.isInteger(pid) || pid <= 0) throw new Error('Invalid process id.')
+  if (pid === process.pid) throw new Error('Refusing to stop NPM Server Manager itself.')
+
+  const project = getProject(projectId)
+  if (!project) throw new Error('Project not found. It may have been removed.')
+
+  // The script name was recovered from a command line, so it is checked against
+  // the project's own package.json before anything runs it. Nothing derived from
+  // a process listing is trusted as a name to execute.
+  const pkg = await readPackageJson(project.path)
+  const scripts = pkg?.scripts ?? {}
+  if (!Object.prototype.hasOwnProperty.call(scripts, script)) {
+    throw new Error(`${project.name} has no "${script}" script to restart.`)
+  }
+
+  await killTree(pid)
+  // The replacement binds the same port, so the old holder has to be gone first
+  // or the new server dies on EADDRINUSE and looks like our fault.
+  await waitForPidGone(pid)
+
+  return startServer(projectId, script)
+}
+
+/** True while `pid` still exists. Costs no process spawn, unlike tasklist. */
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (err) {
+    // ESRCH is "no such process"; EPERM means it exists but belongs to someone
+    // whose processes we may not signal, which still counts as alive.
+    return (err as NodeJS.ErrnoException).code === 'EPERM'
+  }
+}
+
+async function waitForPidGone(pid: number, timeoutMs = 8000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (!isPidAlive(pid)) return
+    await new Promise((resolve) => setTimeout(resolve, 120))
+  }
 }
 
 export function clearFinishedRuns(): void {

@@ -15,6 +15,7 @@ import {
   getRunLog,
   killPid,
   listRuns,
+  restartExternal,
   restartServer,
   serverEvents,
   startServer,
@@ -156,6 +157,14 @@ export function registerIpc(
   )
   handle('servers:stop', (runId: unknown) => stopServer(requireString(runId, 'a run id')))
   handle('servers:restart', (runId: unknown) => restartServer(requireString(runId, 'a run id')))
+  handle('servers:restart-external', (pid: unknown, projectId: unknown, script: unknown) => {
+    if (typeof pid !== 'number') throw new Error('Expected a process id.')
+    return restartExternal(
+      pid,
+      requireString(projectId, 'a project id'),
+      requireString(script, 'a script name')
+    )
+  })
   handle('servers:kill', (pid: unknown) => {
     if (typeof pid !== 'number') throw new Error('Expected a process id.')
     return killPid(pid)

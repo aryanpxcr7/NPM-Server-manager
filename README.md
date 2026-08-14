@@ -8,7 +8,7 @@ A Windows desktop app for finding, controlling and updating the Node dev servers
 
 **Find every server that's running.** Scans all listening TCP ports on your PC and shows which process owns each one — including servers you started in a terminal hours ago and forgot about. Node, Bun, Deno, Python, Java and friends are recognised; system services are filtered out.
 
-**Stop and restart them.** Any detected server can be stopped, whether this app started it or not. Stops kill the whole process tree, so `npm run dev` doesn't leave an orphaned bundler holding the port.
+**Stop and restart them — including the ones you started elsewhere.** Any detected server can be stopped, whether this app started it or not, and stops kill the whole process tree so `npm run dev` doesn't leave an orphaned bundler holding the port. A server started in a terminal also shows up on its project's page, and **Restart here** takes it over: it stops it and runs the same npm script from the app, so it comes back with live output and a stop button. The script is recovered by walking up the process tree to the `npm run …` that produced it.
 
 **Add folders as projects.** Point it at any folder with a `package.json`. Projects persist between launches.
 
