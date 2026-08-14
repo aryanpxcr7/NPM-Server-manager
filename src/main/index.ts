@@ -8,6 +8,15 @@ let mainWindow: BrowserWindow | null = null
 /** Set once the user has chosen to quit, so the close handler stops intercepting. */
 let quitting = false
 
+// A development run gets its own data directory. Two consequences, both wanted:
+// the single-instance lock no longer collides with an installed copy (dev used to
+// quit instantly and silently while the real app was open), and a dev session
+// cannot corrupt the real projects.json or runs.json -- two instances writing the
+// same run index would fight over which servers exist.
+if (!app.isPackaged) {
+  app.setPath('userData', `${app.getPath('userData')}-dev`)
+}
+
 function assetPath(file: string): string {
   // Packaged builds resolve against resources/; development against build/.
   const packaged = path.join(process.resourcesPath, file)

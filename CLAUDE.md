@@ -93,3 +93,18 @@ covers the one case needed. See `docs/DECISIONS.md` §5.
 Windows-only by design — `netstat`, `taskkill` and `Get-CimInstance` are all
 Windows-specific. There is no abstraction layer for other platforms and adding
 one is not currently planned.
+
+## Watching changes without reinstalling
+
+```bash
+npm run dev
+```
+
+Vite hot-reloads the renderer, and electron-vite restarts the main process when
+`src/main/` or `src/preload/` changes. No rebuild, no version bump, no installer.
+
+A development run uses a **separate** data directory (`…\npm-server-manager-dev`),
+so it has its own project list and run index. That is deliberate: the
+single-instance lock is keyed on the data directory, and sharing one meant
+`npm run dev` exited instantly and silently whenever an installed copy was
+already open.
